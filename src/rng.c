@@ -16,3 +16,7 @@ uint32_t rng_next(Rng *rng) {
     rng->state = x;
     return x;
 }
+
+uint32_t rng_draw_ticket(Rng *rng, uint32_t active_tickets) {
+    return (rng_next(rng) % active_tickets) + 1;
+}

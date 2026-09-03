@@ -33,4 +33,20 @@ int rng_init(Rng *rng, uint32_t seed);
  */
 uint32_t rng_next(Rng *rng);
 
+/*
+ * Sortea el boleto ganador en [1, active_tickets]: (rng_next(rng) %
+ * active_tickets) + 1.
+ *
+ * Precondición: active_tickets >= 1, rng inicializado.
+ * Efecto: avanza rng->state (vía rng_next).
+ * Sincronización: igual que rng_init.
+ *
+ * Nota de sesgo: la operación módulo introduce un sesgo leve hacia los
+ * boletos bajos cuando active_tickets no divide exactamente 2^32. Se
+ * acepta y documenta (no se corrige con rejection sampling): el sesgo es
+ * despreciable porque active_tickets es órdenes de magnitud menor que el
+ * rango de x (uint32_t, hasta 2^32).
+ */
+uint32_t rng_draw_ticket(Rng *rng, uint32_t active_tickets);
+
 #endif
