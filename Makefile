@@ -29,9 +29,9 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# Placeholder: los 7 casos de prueba reales se integran en Milestone 10.
+# Placeholder hasta que existan casos de prueba reales.
 test: all
-	@echo "Sin casos de prueba todavía (ver Milestone 10)."
+	@echo "Sin casos de prueba todavía."
 
 clean:
 	rm -rf $(BUILD_DIR)
