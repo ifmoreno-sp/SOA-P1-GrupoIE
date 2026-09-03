@@ -18,6 +18,31 @@ static void trim_eol(char *line)
 }
 
 /* Convierte un string a un entero sin signo de 32 bits. */
+/* Separa una linea en exactamente 3 campos por coma, preservando campos
+ * vacios (a diferencia de strtok, que colapsa comas consecutivas y por lo
+ * tanto no puede distinguir "1,,1000" de "1,1000"). Modifica line in-place
+ * insertando '\0' en las comas de separacion.
+ * Retorna 0 y llena fields[0..2] en exito. Retorna -1 si faltan columnas
+ * (menos de 3) o si sobran (una coma extra despues de la tercera). */
+static int split_csv_row(char *line, char *fields[3])
+{
+    char *start = line;
+    for (int i = 0; i < 2; i++) {
+        char *comma = strchr(start, ',');
+        if (comma == NULL) {
+            return -1;
+        }
+        *comma = '\0';
+        fields[i] = start;
+        start = comma + 1;
+    }
+    if (strchr(start, ',') != NULL) {
+        return -1;
+    }
+    fields[2] = start;
+    return 0;
+}
+
 static int parse_uint32_field(const char *field, uint32_t *out)
 {
     if (field == NULL || *field == '\0') {
@@ -94,19 +119,16 @@ int csv_parser_load(const char *path, Task **out_tasks, size_t *out_count,
             break;
         }
 
-        char *saveptr = NULL;
-        char *id_str = strtok_r(line, ",", &saveptr);
-        char *tickets_str = strtok_r(NULL, ",", &saveptr);
-        char *work_str = strtok_r(NULL, ",", &saveptr);
-        char *extra = strtok_r(NULL, ",", &saveptr);
-
-        if (id_str == NULL || tickets_str == NULL || work_str == NULL ||
-            extra != NULL) {
+        char *fields[3];
+        if (split_csv_row(line, fields) != 0) {
             snprintf(errbuf, CSV_PARSER_ERRBUF_SIZE,
                      "fila %zu: se esperaban exactamente 3 columnas", row);
             failed = 1;
             break;
         }
+        char *id_str = fields[0];
+        char *tickets_str = fields[1];
+        char *work_str = fields[2];
 
         uint32_t id = 0;
         uint32_t tickets = 0;
