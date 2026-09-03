@@ -1,0 +1,15 @@
+# Build artifacts
+build/
+*.o
+*.out
+
+# Resultados generados por experimentos (no versionar corridas masivas)
+results/*
+!results/.gitkeep
+
+# macOS
+.DS_Store
+
+# Editores
+.vscode/
+*.swp
