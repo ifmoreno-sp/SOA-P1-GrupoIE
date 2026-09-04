@@ -4,12 +4,16 @@
 
 #include "rng.h"
 
+/* seed=0 es el único punto fijo de xorshift32 (x=0 se queda en 0 para
+ * siempre), así que rng_init debe rechazarlo explícitamente. */
 static void test_seed_zero_rejected(void) {
     Rng r;
     assert(rng_init(&r, 0) == -1);
     printf("OK: seed 0 rechazada\n");
 }
 
+/* Cualquier semilla != 0 es válida, incluyendo los extremos del rango
+ * representable (1 y UINT32_MAX). */
 static void test_seed_nonzero_accepted(void) {
     Rng r;
     assert(rng_init(&r, 1) == 0);
@@ -37,6 +41,10 @@ static void test_known_sequence(void) {
     printf("OK: secuencia conocida para seed=1\n");
 }
 
+/* El enunciado exige que la misma semilla reproduzca exactamente el mismo
+ * registro de decisiones; esto lo verifica al nivel del RNG, aislado del
+ * resto del programa: dos instancias independientes con la misma semilla
+ * deben coincidir valor a valor. */
 static void test_determinism(void) {
     Rng a, b;
     rng_init(&a, 2026);
@@ -47,6 +55,10 @@ static void test_determinism(void) {
     printf("OK: misma semilla produce la misma secuencia\n");
 }
 
+/* rng_draw_ticket nunca debe devolver un boleto fuera de rango. Se prueba
+ * con varios tamaños de active_tickets (incluyendo uno grande, cercano al
+ * orden de magnitud donde importaría un error de límites) y muchos sorteos
+ * por caso para tener chance real de atrapar un off-by-one. */
 static void test_draw_ticket_range(void) {
     static const uint32_t active_tickets_cases[] = {1u, 2u, 3u, 60u, 1000000u};
     for (size_t c = 0; c < sizeof(active_tickets_cases) / sizeof(active_tickets_cases[0]); c++) {
@@ -61,6 +73,8 @@ static void test_draw_ticket_range(void) {
     printf("OK: boleto siempre en [1, active_tickets]\n");
 }
 
+/* Caso borde: con un solo boleto en juego, todo x % 1 da 0, así que el
+ * resultado (con el +1) debe ser siempre el boleto 1, sin excepción. */
 static void test_draw_ticket_single_ticket(void) {
     Rng r;
     rng_init(&r, 7);
