@@ -1,3 +1,5 @@
+#include <assert.h>
+
 #include "rng.h"
 
 int rng_init(Rng *rng, uint32_t seed) {
@@ -18,5 +20,6 @@ uint32_t rng_next(Rng *rng) {
 }
 
 uint32_t rng_draw_ticket(Rng *rng, uint32_t active_tickets) {
+    assert(active_tickets >= 1);
     return (rng_next(rng) % active_tickets) + 1;
 }

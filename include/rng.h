@@ -37,7 +37,8 @@ uint32_t rng_next(Rng *rng);
  * Sortea el boleto ganador en [1, active_tickets]: (rng_next(rng) %
  * active_tickets) + 1.
  *
- * Precondición: active_tickets >= 1, rng inicializado.
+ * Precondición: active_tickets >= 1 (verificado con assert; active_tickets
+ * == 0 produciría división por cero), rng inicializado.
  * Efecto: avanza rng->state (vía rng_next).
  * Sincronización: igual que rng_init.
  *
