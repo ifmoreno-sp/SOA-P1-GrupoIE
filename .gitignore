@@ -1,5 +1,6 @@
 # Build artifacts
 build/
+lottery_scheduler
 *.o
 *.out
 
