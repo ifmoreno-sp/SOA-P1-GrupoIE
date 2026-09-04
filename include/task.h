@@ -1,6 +1,7 @@
 #ifndef TASK_H
 #define TASK_H
 
+#include <pthread.h>
 #include <stdint.h>
 
 /* Estados posibles de una tarea. Solo una tarea puede estar en TASK_RUNNING
@@ -24,13 +25,26 @@ typedef struct {
     double term;
     double pi_approx;
     uint64_t pi_index;
+
+    /* El hilo trabajador de ESTA tarea espera aqui hasta que su estado pase
+     * a TASK_RUNNING (ver sync.h). Protegida por el mutex de Sync, no por un
+     * lock propio. */
+    pthread_cond_t cond_worker;
 } Task;
 
 /* Inicializa una tarea recien leida del CSV: estado TASK_READY, progreso y
  * despachos en cero, y la serie de pi en su punto de partida
- * (term = 1, pi_approx = 2, indice = 0).
+ * (term = 1, pi_approx = 2, indice = 0). Ademas inicializa cond_worker
+ * (pthread_cond_init). Se asume que no falla (assert(rc == 0)):
+ * pthread_cond_init solo falla por agotamiento de recursos del sistema, no
+ * aplica al tamano de este proyecto (<=25 tareas).
  * Precondicion: task != NULL. */
 void task_init(Task *task, uint32_t id, uint32_t tickets, uint32_t work_units);
+
+/* Libera cond_worker (pthread_cond_destroy).
+ * Precondicion: task fue inicializado con task_init y su hilo trabajador ya
+ * termino (pthread_join ya se hizo). */
+void task_destroy(Task *task);
 
 /* Nombre legible del estado, para logs y resumenes. */
 const char *task_state_name(TaskState state);
