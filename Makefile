@@ -17,7 +17,7 @@ SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 # Ninguno de estos targets produce un archivo con su propio nombre.
-.PHONY: all test clean
+.PHONY: all test test-rng clean
 
 all: $(TARGET)
 
@@ -33,9 +33,16 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# Pruebas funcionales del Milestone 1: validacion de CSV y de argumentos.
-test: all
+# Corre las pruebas de validación de entrada (CSV y argumentos) y las
+# pruebas unitarias de los módulos que ya las tienen (por ahora solo rng).
+test: all test-rng
 	bash tests/test_input_validation.sh
+
+test-rng: $(BUILD_DIR)/test_rng
+	./$(BUILD_DIR)/test_rng
+
+$(BUILD_DIR)/test_rng: tests/test_rng.c src/rng.c include/rng.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ tests/test_rng.c src/rng.c
 
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET)
