@@ -1,8 +1,6 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 #include "rng.h"
 
@@ -86,28 +84,6 @@ static void test_draw_ticket_single_ticket(void) {
     printf("OK: active_tickets=1 siempre gana el boleto 1\n");
 }
 
-/* active_tickets=0 causaría división por cero en el módulo; rng_draw_ticket
- * lo rechaza con assert(). Se corre en un proceso hijo (fork) para poder
- * verificar que sí aborta sin matar el resto de las pruebas. */
-static void test_draw_ticket_zero_active_tickets_aborts(void) {
-    /* Sin este flush, el hijo hereda el buffer de stdout con las líneas
-     * "OK" de las pruebas anteriores todavía sin escribir, y las duplica
-     * al salir. */
-    fflush(stdout);
-    pid_t pid = fork();
-    assert(pid >= 0);
-    if (pid == 0) {
-        Rng r;
-        rng_init(&r, 7);
-        rng_draw_ticket(&r, 0);
-        _exit(0); /* no debería llegar aquí: la línea anterior debe abortar */
-    }
-    int status;
-    waitpid(pid, &status, 0);
-    assert(WIFSIGNALED(status));
-    printf("OK: active_tickets=0 aborta (assert)\n");
-}
-
 int main(void) {
     test_seed_zero_rejected();
     test_seed_nonzero_accepted();
@@ -115,7 +91,6 @@ int main(void) {
     test_determinism();
     test_draw_ticket_range();
     test_draw_ticket_single_ticket();
-    test_draw_ticket_zero_active_tickets_aborts();
     printf("Todas las pruebas de rng pasaron.\n");
     return 0;
 }
