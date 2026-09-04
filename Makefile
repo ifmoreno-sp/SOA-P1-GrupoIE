@@ -17,7 +17,7 @@ SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 # Ninguno de estos targets produce un archivo con su propio nombre.
-.PHONY: all test test-rng clean
+.PHONY: all test test-rng test-workload clean
 
 all: $(TARGET)
 
@@ -34,8 +34,8 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 # Corre las pruebas de validación de entrada (CSV y argumentos) y las
-# pruebas unitarias de los módulos que ya las tienen (por ahora solo rng).
-test: all test-rng
+# pruebas unitarias de los módulos que ya las tienen (rng y workload).
+test: all test-rng test-workload
 	bash tests/test_input_validation.sh
 
 test-rng: $(BUILD_DIR)/test_rng
@@ -43,6 +43,12 @@ test-rng: $(BUILD_DIR)/test_rng
 
 $(BUILD_DIR)/test_rng: tests/test_rng.c src/rng.c include/rng.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ tests/test_rng.c src/rng.c
+
+test-workload: $(BUILD_DIR)/test_workload
+	./$(BUILD_DIR)/test_workload
+
+$(BUILD_DIR)/test_workload: tests/test_workload.c src/task.c src/workload.c include/task.h include/workload.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ tests/test_workload.c src/task.c src/workload.c
 
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET)
