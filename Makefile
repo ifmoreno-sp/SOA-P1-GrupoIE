@@ -13,7 +13,7 @@ SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 # Ninguno de estos targets produce un archivo con su propio nombre.
-.PHONY: all test clean
+.PHONY: all test test-rng clean
 
 all: $(TARGET)
 
@@ -29,9 +29,15 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# Placeholder hasta que existan casos de prueba reales.
-test: all
-	@echo "Sin casos de prueba todavía."
+# Corre las pruebas unitarias de los módulos que ya las tienen. Se va
+# extendiendo a medida que existen más (por ahora solo rng).
+test: all test-rng
+
+test-rng: $(BUILD_DIR)/test_rng
+	./$(BUILD_DIR)/test_rng
+
+$(BUILD_DIR)/test_rng: tests/test_rng.c src/rng.c include/rng.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ tests/test_rng.c src/rng.c
 
 clean:
 	rm -rf $(BUILD_DIR)
