@@ -102,12 +102,52 @@ static void test_completed_units_accounting(void)
           "pi_index avanza uno a uno con completed_units");
 }
 
+/* Valor absoluto local para no depender de libm (fabs) por una sola
+ * comparacion. */
+static double abs_diff(double a, double b)
+{
+    double d = a - b;
+    return d < 0.0 ? -d : d;
+}
+
+/* Compara pi_approx contra un valor de referencia calculado por un camino
+ * independiente de la recurrencia multiplicativa que usa workload_run_units
+ * (a diferencia de las pruebas anteriores, que solo verifican propiedades
+ * como monotonia sin fijar un valor esperado).
+ *
+ * El termino j de esta serie tiene una forma cerrada equivalente a la
+ * recurrencia: a_j = C(2j,j) / (4^j * (2j+1)), con pi_approx = 2 + 2*sum(a_j).
+ * Es el mismo termino de la serie de Taylor de arcsin(1) evaluada en 1.
+ *
+ * Caso N=1, verificable a mano: a_1 = C(2,1)/(4*3) = 2/12 = 1/6, entonces
+ * pi_approx = 2 + 2*(1/6) = 7/3.
+ *
+ * Caso N=10: 2.8001699635058102, calculado aparte evaluando la formula
+ * cerrada con la misma aritmetica de punto flotante (sin usar la
+ * recurrencia bajo prueba), y verificado independiente de este repo. */
+static void test_matches_known_value(void)
+{
+    Task task;
+    task_init(&task, 1, 10, 100);
+
+    workload_run_units(&task, 1);
+    double expected_1 = 2.0 + 2.0 * (1.0 / 6.0);
+    check(abs_diff(task.pi_approx, expected_1) < 1e-12,
+          "pi_approx tras 1 unidad coincide con el valor calculado a mano (7/3)");
+
+    workload_run_units(&task, 9);
+    double expected_10 = 2.8001699635058102;
+    check(abs_diff(task.pi_approx, expected_10) < 1e-12,
+          "pi_approx tras 10 unidades coincide con el valor de referencia (formula cerrada)");
+}
+
 int main(void)
 {
     printf("Pruebas del modulo de carga de trabajo (pi):\n");
     test_resumption_matches_one_shot();
     test_monotonic_bounded_by_pi();
     test_completed_units_accounting();
+    test_matches_known_value();
 
     printf("\nResultado: %d pasaron, %d fallaron.\n", passed, failed);
     return failed == 0 ? 0 : 1;
