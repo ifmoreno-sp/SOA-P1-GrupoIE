@@ -65,5 +65,11 @@ $(BUILD_DIR)/test_concurrency: tests/test_concurrency.c src/task.c src/sync.c sr
 asan:
 	$(MAKE) BUILD_DIR=build-asan CFLAGS="$(CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer" test
 
+# Igual que asan, pero con ThreadSanitizer. No se combinan en el mismo
+# binario (son instrumentaciones incompatibles entre si), por eso son dos
+# targets separados con su propio BUILD_DIR cada uno.
+tsan:
+	$(MAKE) BUILD_DIR=build-tsan CFLAGS="$(CFLAGS) -fsanitize=thread" test
+
 clean:
-	rm -rf $(BUILD_DIR) build-asan $(TARGET)
+	rm -rf $(BUILD_DIR) build-asan build-tsan $(TARGET)
