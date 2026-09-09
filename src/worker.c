@@ -1,7 +1,39 @@
 #include "worker.h"
 
+#include <assert.h>
+
 #include "workload.h"
 
+uint32_t cooperative_slice_size(uint32_t work_units, uint32_t slice_percent)
+{
+    assert(work_units >= 1);
+    assert(slice_percent >= 1 && slice_percent <= 100);
+
+    /* uint64_t para el producto intermedio: work_units * slice_percent cabe
+     * holgado en 64 bits (maximo realista ~10,000,000 * 100), pero seguimos
+     * la misma convencion que csv_parser.c para la suma de tickets. */
+    uint64_t block = ((uint64_t)work_units * slice_percent + 99) / 100;
+
+    assert(block >= 1 && block <= work_units);
+    return (uint32_t)block;
+}
+
+/* Cuantas unidades corren en esta activacion: el tamano de bloque segun el
+ * modo (fijo en quantum, calculado sobre el total en cooperativo), topado
+ * por lo que realmente falta. */
+static uint32_t decide_slice_units(const WorkerArgs *wargs)
+{
+    const Task *task = wargs->task;
+    uint32_t remaining = task->work_units - task->completed_units;
+
+    uint32_t requested = (wargs->mode == MODE_COOPERATIVE)
+                              ? cooperative_slice_size(task->work_units, wargs->slice_percent)
+                              : wargs->quantum;
+
+    return (requested < remaining) ? requested : remaining;
+}
+
+/* Bucle infinito del thread del worker */
 void *worker_thread_main(void *arg)
 {
     WorkerArgs *wargs = arg;
@@ -16,11 +48,8 @@ void *worker_thread_main(void *arg)
             break;
         }
 
-        /* Placeholder temporal: corre todo el trabajo restante de una sola
-         * activacion. Se reemplazara por el corte real segun el modo
-         * (cooperativo/quantum). */
-        uint32_t remaining = task->work_units - task->completed_units;
-        workload_run_units(task, remaining);
+        uint32_t run_units = decide_slice_units(wargs);
+        workload_run_units(task, run_units);
 
         TaskState next_state = (task->completed_units == task->work_units)
                                     ? TASK_FINISHED
@@ -35,6 +64,7 @@ void *worker_thread_main(void *arg)
     return NULL;
 }
 
+/* Inicializa un grupo de worker threads */
 int worker_pool_start(pthread_t *threads, WorkerArgs *args, size_t count)
 {
     for (size_t i = 0; i < count; i++) {
@@ -45,6 +75,7 @@ int worker_pool_start(pthread_t *threads, WorkerArgs *args, size_t count)
     return 0;
 }
 
+/* Espera a que todos los worker threads terminen */
 void worker_pool_join(pthread_t *threads, size_t count)
 {
     for (size_t i = 0; i < count; i++) {
