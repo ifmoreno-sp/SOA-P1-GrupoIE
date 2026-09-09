@@ -13,6 +13,20 @@ modifica el kernel ni se sustituye el scheduler de GNU/Linux.
 | Emmanuel Barrantes Vargas | 200012366 | `ebarrantes07` |
 | Isaac Moreno Fuentes | 2018119181 | `ifmoreno-sp` |
 
+## Compilación y pruebas
+
+```bash
+make all    # compila lottery_scheduler
+make test   # corre todas las suites de pruebas
+make asan   # make test con AddressSanitizer + UndefinedBehaviorSanitizer
+make tsan   # make test con ThreadSanitizer
+make clean  # limpia binarios y objetos, incluidos los de asan/tsan
+```
+
+`asan` y `tsan` no se combinan en una sola ejecución (son instrumentaciones
+incompatibles entre sí): cada uno reconstruye y corre la suite completa por
+separado, en su propio directorio de build.
+
 ## Decisiones de diseño
 
 ### Sesgo de módulo en el sorteo de boletos (`rng_draw_ticket`)
