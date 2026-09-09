@@ -17,7 +17,7 @@ SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 # Ninguno de estos targets produce un archivo con su propio nombre.
-.PHONY: all test test-rng test-workload test-concurrency clean
+.PHONY: all test test-rng test-workload test-concurrency test-scheduler clean
 
 all: $(TARGET)
 
@@ -36,7 +36,7 @@ $(BUILD_DIR):
 # Corre las pruebas de validación de entrada (CSV y argumentos) y las
 # pruebas unitarias de los módulos que ya las tienen (rng, workload y el
 # núcleo de concurrencia).
-test: all test-rng test-workload test-concurrency
+test: all test-rng test-workload test-concurrency test-scheduler
 	bash tests/test_input_validation.sh
 
 test-rng: $(BUILD_DIR)/test_rng
@@ -58,6 +58,12 @@ test-concurrency: $(BUILD_DIR)/test_concurrency
 # boletos con el RNG del proyecto.
 $(BUILD_DIR)/test_concurrency: tests/test_concurrency.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c include/task.h include/sync.h include/worker.h include/workload.h include/rng.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ tests/test_concurrency.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c
+
+test-scheduler: $(BUILD_DIR)/test_scheduler
+	./$(BUILD_DIR)/test_scheduler
+
+$(BUILD_DIR)/test_scheduler: tests/test_scheduler.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c src/scheduler.c include/task.h include/sync.h include/worker.h include/workload.h include/rng.h include/scheduler.h include/csv_parser.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ tests/test_scheduler.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c src/scheduler.c
 
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET)
