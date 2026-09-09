@@ -17,7 +17,7 @@ SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 # Ninguno de estos targets produce un archivo con su propio nombre.
-.PHONY: all test test-rng test-workload test-concurrency test-scheduler clean
+.PHONY: all test test-rng test-workload test-concurrency test-scheduler asan tsan clean
 
 all: $(TARGET)
 
@@ -65,5 +65,13 @@ test-scheduler: $(BUILD_DIR)/test_scheduler
 $(BUILD_DIR)/test_scheduler: tests/test_scheduler.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c src/scheduler.c include/task.h include/sync.h include/worker.h include/workload.h include/rng.h include/scheduler.h include/csv_parser.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ tests/test_scheduler.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c src/scheduler.c
 
+# Reconstruye y corre toda la suite (mismos targets que test) con
+# AddressSanitizer + UndefinedBehaviorSanitizer. Usa su propio BUILD_DIR
+# para no mezclar objetos con los de una compilacion normal; TARGET no
+# cambia, asi que tests/test_input_validation.sh (que invoca ./lottery_scheduler
+# a secas) sigue funcionando sin modificaciones.
+asan:
+	$(MAKE) BUILD_DIR=build-asan CFLAGS="$(CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer" test
+
 clean:
-	rm -rf $(BUILD_DIR) $(TARGET)
+	rm -rf $(BUILD_DIR) build-asan $(TARGET)
