@@ -37,10 +37,16 @@ static void check(int condition, const char *description)
 }
 
 /* Despacha, en cada ronda, la primera tarea READY por indice (nunca por
- * loteria) hasta que no quede ninguna. Sustituye al scheduler real de M5. */
+ * loteria) hasta que no quede ninguna. Ya no es la plantilla del scheduler
+ * real (M5 la reemplaza por sync_select_winner, ver sync.h), pero sigue
+ * sirviendo para probar el nucleo de concurrencia en aislamiento de la
+ * logica de sorteo. El recorrido de tasks[] se hace bajo sync->mutex
+ * directamente (D9 resuelto): ningun codigo debe leer task.state sin
+ * sostener el mutex, ni siquiera este scheduler de prueba. */
 static void run_fake_scheduler(Sync *sync, Task *tasks, size_t count)
 {
     for (;;) {
+        pthread_mutex_lock(&sync->mutex);
         size_t winner = count; /* sentinela: ninguna READY encontrada */
         for (size_t i = 0; i < count; i++) {
             if (tasks[i].state == TASK_READY) {
@@ -48,6 +54,8 @@ static void run_fake_scheduler(Sync *sync, Task *tasks, size_t count)
                 break;
             }
         }
+        pthread_mutex_unlock(&sync->mutex);
+
         if (winner == count) {
             return;
         }

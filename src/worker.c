@@ -9,7 +9,12 @@ void *worker_thread_main(void *arg)
     Sync *sync = wargs->sync;
 
     for (;;) {
-        sync_wait_for_dispatch(sync, task);
+        if (sync_wait_for_dispatch(sync, task) != 0) {
+            /* --max-dispatches corto la observacion (M5) antes de que
+             * esta tarea volviera a ser despachada: retorna sin ejecutar
+             * trabajo ni cambiar su estado (queda en TASK_READY). */
+            break;
+        }
 
         /* Placeholder de M4: correr todo el trabajo restante de una sola
          * activacion. M6 reemplaza esto por el corte real segun el modo
