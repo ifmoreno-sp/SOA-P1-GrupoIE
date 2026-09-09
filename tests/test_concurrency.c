@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include "rng.h"
 #include "sync.h"
 #include "task.h"
 #include "worker.h"
@@ -142,11 +143,124 @@ static void test_three_tasks(void)
     sync_destroy(&sync);
 }
 
+/* --- Pruebas de sync_select_winner (M5): el sorteo bajo mutex --- */
+
+/* Con una sola tarea TASK_READY, siempre debe ganar ella. */
+static void test_select_winner_single_ready(void)
+{
+    Task tasks[1];
+    task_init(&tasks[0], 7, 42, 100);
+
+    Sync sync;
+    check(sync_init(&sync) == 0, "sync_init exitoso (select_winner, 1 tarea)");
+    Rng rng;
+    check(rng_init(&rng, 2026) == 0, "rng_init exitoso (select_winner, 1 tarea)");
+
+    Selection sel = sync_select_winner(&sync, tasks, 1, &rng);
+    check(sel.index == 0, "unica tarea READY siempre gana");
+    check(sel.active_tickets == 42, "active_tickets es el total de la unica tarea");
+    check(sel.winning_ticket >= 1 && sel.winning_ticket <= 42,
+          "winning_ticket cae en [1, active_tickets]");
+
+    task_destroy(&tasks[0]);
+    sync_destroy(&sync);
+}
+
+/* Sin ninguna tarea TASK_READY, debe retornar el sentinela (index ==
+ * task_count). */
+static void test_select_winner_no_ready_tasks(void)
+{
+    Task tasks[2];
+    task_init(&tasks[0], 1, 10, 5);
+    task_init(&tasks[1], 2, 10, 5);
+    tasks[0].state = TASK_FINISHED;
+    tasks[1].state = TASK_FINISHED;
+
+    Sync sync;
+    check(sync_init(&sync) == 0, "sync_init exitoso (select_winner, sin READY)");
+    Rng rng;
+    check(rng_init(&rng, 2026) == 0, "rng_init exitoso (select_winner, sin READY)");
+
+    Selection sel = sync_select_winner(&sync, tasks, 2, &rng);
+    check(sel.index == 2, "sin tareas READY, retorna el sentinela task_count");
+
+    task_destroy(&tasks[0]);
+    task_destroy(&tasks[1]);
+    sync_destroy(&sync);
+}
+
+/* Con tareas FINISHED intercaladas, sync_select_winner debe ignorarlas por
+ * completo: ni suman boletos ni pueden ganar. */
+static void test_select_winner_skips_non_ready(void)
+{
+    Task tasks[3];
+    task_init(&tasks[0], 1, 1000, 5); /* muchos boletos, pero FINISHED */
+    task_init(&tasks[1], 2, 10, 5);   /* la unica READY */
+    task_init(&tasks[2], 3, 1000, 5); /* muchos boletos, pero FINISHED */
+    tasks[0].state = TASK_FINISHED;
+    tasks[2].state = TASK_FINISHED;
+
+    Sync sync;
+    check(sync_init(&sync) == 0, "sync_init exitoso (select_winner, mezcla de estados)");
+    Rng rng;
+    check(rng_init(&rng, 99) == 0, "rng_init exitoso (select_winner, mezcla de estados)");
+
+    Selection sel = sync_select_winner(&sync, tasks, 3, &rng);
+    check(sel.index == 1, "la unica tarea READY gana, sin importar boletos de las FINISHED");
+    check(sel.active_tickets == 10, "active_tickets ignora boletos de tareas no-READY");
+
+    for (int i = 0; i < 3; i++) {
+        task_destroy(&tasks[i]);
+    }
+    sync_destroy(&sync);
+}
+
+/* Prueba estadistica: con boletos muy desiguales (10 vs 90 de 100
+ * activos), la tarea con mas boletos debe ganar el sorteo bastante mas
+ * seguido a largo plazo. Se usa una banda amplia (no un valor exacto)
+ * porque el sesgo leve de modulo ya documentado (D4) y el tamano finito de
+ * la muestra hacen fragil pedir precision exacta. */
+static void test_select_winner_weighted_distribution(void)
+{
+    enum { TRIALS = 4000 };
+    int wins_high_tickets = 0;
+
+    for (uint32_t seed = 1; seed <= TRIALS; seed++) {
+        Task tasks[2];
+        task_init(&tasks[0], 1, 10, 5); /* pocos boletos */
+        task_init(&tasks[1], 2, 90, 5); /* muchos boletos */
+
+        Sync sync;
+        sync_init(&sync);
+        Rng rng;
+        rng_init(&rng, seed);
+
+        Selection sel = sync_select_winner(&sync, tasks, 2, &rng);
+        if (sel.index == 1) {
+            wins_high_tickets++;
+        }
+
+        task_destroy(&tasks[0]);
+        task_destroy(&tasks[1]);
+        sync_destroy(&sync);
+    }
+
+    double ratio = (double)wins_high_tickets / TRIALS;
+    check(ratio > 0.85 && ratio < 0.95,
+          "tarea con 90% de los boletos gana aproximadamente 90% de los sorteos (4000 semillas)");
+}
+
 int main(void)
 {
     printf("Pruebas de integracion del nucleo de concurrencia:\n");
     test_single_task();
     test_three_tasks();
+
+    printf("\nPruebas de sync_select_winner:\n");
+    test_select_winner_single_ready();
+    test_select_winner_no_ready_tasks();
+    test_select_winner_skips_non_ready();
+    test_select_winner_weighted_distribution();
 
     printf("\nResultado: %d pasaron, %d fallaron.\n", passed, failed);
     return failed == 0 ? 0 : 1;
