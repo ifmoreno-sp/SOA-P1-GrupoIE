@@ -1,8 +1,8 @@
 /* Pruebas del modulo de carga de trabajo (workload_run_units). No hay forma
- * de ejercitar esta pieza por la interfaz de linea de comandos todavia (no
- * existe scheduler hasta milestones posteriores), asi que se prueba
- * llamando directamente a la funcion. Sin framework: assert()-based, con un
- * contador de pasadas/fallos al estilo de tests/test_input_validation.sh. */
+ * de ejercitar esta pieza por la interfaz de linea de comandos (no depende
+ * del scheduler ni de la CLI), asi que se prueba llamando directamente a
+ * la funcion. Sin framework: assert()-based, con un contador de
+ * pasadas/fallos al estilo de tests/test_input_validation.sh. */
 
 #include <stdio.h>
 
