@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Pruebas de validacion de entrada: parseo de CSV, validaciones de entrada
-# y CLI. Cubren el Caso 1 del enunciado (rechazo con codigo distinto de
-# cero y sin ejecucion parcial). Los 7 casos completos se agregan aparte.
+# Pruebas del Milestone 1: parseo de CSV, validaciones de entrada y CLI.
+# Cubren el Caso 1 del enunciado (rechazo con codigo distinto de cero y sin
+# ejecucion parcial). Los 7 casos completos llegan con el Milestone 10.
 set -uo pipefail
 
 BIN="./lottery_scheduler"
