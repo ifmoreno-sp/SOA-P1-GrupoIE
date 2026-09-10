@@ -19,8 +19,8 @@
  * reentrante en el sentido de que dos tareas distintas pueden tener cada
  * una su propio estado avanzando de forma independiente. No es segura de
  * llamar concurrentemente sobre el mismo `task` sin sincronizacion externa,
- * pero el diseno del scheduler (ver milestones de concurrencia) garantiza
- * que como maximo una tarea corre a la vez. */
+ * pero el diseno del scheduler garantiza que como maximo una tarea corre a
+ * la vez. */
 void workload_run_units(Task *task, uint32_t units);
 
 #endif /* WORKLOAD_H */
