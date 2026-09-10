@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "cli.h"
 #include "rng.h"
 #include "sync.h"
 #include "task.h"
@@ -48,9 +49,17 @@ typedef void (*DispatchObserver)(const DispatchEvent *event, void *ctx);
  * Si `observer` no es NULL, se invoca con los datos de cada despacho
  * (incluido el ultimo si --max-dispatches corto la observacion).
  *
+ * `mode`, `quantum` y `slice_percent` son los mismos para todas las
+ * tareas (vienen de la CLI) y se pasan tal cual a cada worker (ver
+ * WorkerArgs en worker.h): deciden cuantas unidades corre la ganadora en
+ * cada activacion. Solo el campo que corresponde a `mode` es valido
+ * (quantum con MODE_QUANTUM, slice_percent con MODE_COOPERATIVE) --
+ * scheduler_run no valida esto, es responsabilidad de cli_parse.
+ *
  * Precondiciones: sync ya inicializado (sync_init); rng ya inicializado
  * (rng_init); todas las tareas en tasks[] estan en TASK_READY; task_count
- * esta entre 1 y CSV_PARSER_MAX_TASKS.
+ * esta entre 1 y CSV_PARSER_MAX_TASKS; si mode == MODE_COOPERATIVE,
+ * 1 <= slice_percent <= 100; si mode == MODE_QUANTUM, quantum >= 1.
  *
  * Postcondicion: al retornar, toda tarea quedo en TASK_FINISHED (si no
  * hubo limite, o si el limite no se alcanzo antes de que todas
@@ -60,6 +69,7 @@ typedef void (*DispatchObserver)(const DispatchEvent *event, void *ctx);
  *
  * Retorna la cantidad total de despachos realizados. */
 uint64_t scheduler_run(Sync *sync, Task *tasks, size_t task_count, Rng *rng,
+                        SchedulerMode mode, uint32_t quantum, uint32_t slice_percent,
                         uint64_t max_dispatches, DispatchObserver observer,
                         void *observer_ctx);
 
