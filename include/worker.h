@@ -27,10 +27,18 @@ typedef struct {
  * (no el restante) -- por eso da el mismo resultado en cada activacion,
  * sin importar cuanto se haya avanzado ya.
  *
+ * Aritmetica entera exacta, sin punto flotante: el enunciado exige que la
+ * misma entrada/semilla/modo/parametros produzca siempre el mismo
+ * resultado, y `double` introduciria redondeo dependiente del compilador.
+ * El ceil se logra con la identidad ceil(a/b) == (a + b - 1) / b sobre
+ * division entera (aca b = 100). El producto work_units * slice_percent
+ * se computa en uint64_t para no desbordar uint32_t antes de dividir
+ * (mismo criterio que csv_parser.c usa para la suma de tickets).
+ *
  * Precondicion: work_units >= 1, 1 <= slice_percent <= 100. Con esas
  * precondiciones el resultado siempre es >= 1 (verificado con assert, no
  * hace falta un caso especial: ceil(work_units * 1 / 100) >= 1 para todo
- * work_units >= 1).
+ * work_units >= 1) y nunca mayor a work_units.
  *
  * Publica (no estatica) para poder probarla directo con la aritmetica,
  * sin necesidad de hilos ni del protocolo de sincronizacion. */

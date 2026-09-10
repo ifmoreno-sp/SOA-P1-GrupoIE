@@ -1,7 +1,5 @@
 #include "worker.h"
-
 #include <assert.h>
-
 #include "workload.h"
 
 uint32_t cooperative_slice_size(uint32_t work_units, uint32_t slice_percent)
@@ -9,9 +7,8 @@ uint32_t cooperative_slice_size(uint32_t work_units, uint32_t slice_percent)
     assert(work_units >= 1);
     assert(slice_percent >= 1 && slice_percent <= 100);
 
-    /* uint64_t para el producto intermedio: work_units * slice_percent cabe
-     * holgado en 64 bits (maximo realista ~10,000,000 * 100), pero seguimos
-     * la misma convencion que csv_parser.c para la suma de tickets. */
+    /* ceil(a/b) == (a+b-1)/b en enteros; ver worker.h para el por que de
+     * esta forma y del uint64_t intermedio. */
     uint64_t block = ((uint64_t)work_units * slice_percent + 99) / 100;
 
     assert(block >= 1 && block <= work_units);
