@@ -1,12 +1,17 @@
 /* Pruebas de los modos de ejecucion (M6): el corte cooperativo/quantum
- * dentro del ciclo del worker. Igual que en test_concurrency.c (M4), aqui
- * no existe scheduler real todavia (es M5), asi que se usa un "scheduler
- * falso" que despacha en orden fijo por indice, nunca por loteria.
+ * dentro del ciclo del worker. El scheduler real ya existe (scheduler.c,
+ * M5), pero aqui se usa a proposito un "scheduler falso" que despacha en
+ * orden fijo por indice, nunca por loteria -- para aislar el corte por
+ * modo de la logica de sorteo, igual que test_concurrency.c hace con el
+ * nucleo de concurrencia.
  *
- * Dos niveles de prueba:
+ * Tres niveles de prueba:
  *   1. cooperative_slice_size directo, sin hilos: la aritmetica del ceil.
  *   2. El comportamiento observable de cada modo con hilos reales, mas la
- *      equivalencia funcional entre ambos (caso de prueba 6 del enunciado). */
+ *      equivalencia funcional entre ambos (caso de prueba 6 del enunciado).
+ *   3. Casos borde de quantum (Q mayor/igual/menor al trabajo) y la
+ *      verificacion directa de que una tarea vuelve a TASK_READY a mitad
+ *      de camino, no solo inferida del dispatch_count final. */
 
 #include <pthread.h>
 #include <signal.h>
@@ -223,6 +228,84 @@ static void test_multiple_tasks_quantum(void)
     sync_destroy(&sync);
 }
 
+/* Q mayor que work_units: min(Q, restante) debe tomar "restante", asi que
+ * la tarea termina en una sola activacion pese a estar en modo quantum
+ * (no por casualidad heredada de cooperativo). */
+static void test_quantum_larger_than_work(void)
+{
+    Task task;
+    task_init(&task, 1, 10, 5);
+    uint32_t dispatches = run_one_task(&task, MODE_QUANTUM, 1000, 0);
+
+    check(dispatches == 1, "Q=1000 sobre 5 unidades: 1 sola activacion");
+    check(task.state == TASK_FINISHED, "termina en TASK_FINISHED (Q > work_units)");
+    check(task.completed_units == task.work_units, "completed_units == work_units (Q > work_units)");
+    task_destroy(&task);
+}
+
+/* Q exactamente igual al trabajo total: tambien 1 activacion, sin sobrar
+ * ni faltar nada (el borde entre "una sola vez" y "necesita una segunda"). */
+static void test_quantum_exact_multiple(void)
+{
+    Task task;
+    task_init(&task, 1, 10, 20);
+    uint32_t dispatches = run_one_task(&task, MODE_QUANTUM, 20, 0);
+
+    check(dispatches == 1, "Q=20 sobre 20 unidades: exactamente 1 activacion");
+    check(task.completed_units == task.work_units, "completed_units == work_units (Q == work_units)");
+    task_destroy(&task);
+}
+
+/* Q=1: el peor caso de overhead, una activacion por unidad. */
+static void test_quantum_minimum(void)
+{
+    Task task;
+    task_init(&task, 1, 10, 6);
+    uint32_t dispatches = run_one_task(&task, MODE_QUANTUM, 1, 0);
+
+    check(dispatches == 6, "Q=1 sobre 6 unidades: 6 activaciones (una por unidad)");
+    check(task.completed_units == task.work_units, "completed_units == work_units (Q=1)");
+    task_destroy(&task);
+}
+
+/* Despacha manualmente UNA sola vez (sin dejar que el scheduler falso siga
+ * el ciclo hasta el final) y verifica el estado justo despues: con Q menor
+ * al trabajo total, la tarea debe quedar en TASK_READY, no en
+ * TASK_FINISHED. Las demas pruebas de este archivo solo infieren la
+ * expropiacion del dispatch_count final; esta la observa directamente. */
+static void test_quantum_yields_to_ready_after_one_dispatch(void)
+{
+    Task task;
+    task_init(&task, 1, 10, 10);
+
+    Sync sync;
+    check(sync_init(&sync) == 0, "sync_init exitoso (expropiacion intermedia)");
+
+    pthread_t thread;
+    WorkerArgs args = {.task = &task, .sync = &sync, .mode = MODE_QUANTUM, .quantum = 4};
+    check(worker_pool_start(&thread, &args, 1) == 0,
+          "worker_pool_start crea el hilo (expropiacion intermedia)");
+
+    /* Un solo despacho manual, sin el bucle de run_fake_scheduler. */
+    sync_dispatch(&sync, &task, 1, 0);
+    sync_wait_for_event(&sync);
+
+    check(task.state == TASK_READY,
+          "tras UNA activacion con Q=4 < work_units=10, la tarea vuelve a TASK_READY (no FINISHED)");
+    check(task.completed_units == 4, "completed_units == 4 tras la primera activacion (Q=4)");
+    check(task.dispatch_count == 1, "dispatch_count == 1 tras la primera activacion");
+
+    /* Se deja terminar el ciclo para poder unir el hilo limpiamente. */
+    run_fake_scheduler(&sync, &task, 1);
+    join_with_timeout(&thread, 1);
+
+    check(task.state == TASK_FINISHED, "la tarea termina en TASK_FINISHED al final");
+    check(task.dispatch_count == 3, "Q=4 sobre 10 unidades: 3 activaciones en total (4+4+2)");
+
+    task_destroy(&task);
+    sync_destroy(&sync);
+}
+
 int main(void)
 {
     printf("Pruebas de los modos de ejecucion:\n");
@@ -231,6 +314,10 @@ int main(void)
     test_cooperative_mode_dispatches();
     test_modes_produce_same_result();
     test_multiple_tasks_quantum();
+    test_quantum_larger_than_work();
+    test_quantum_exact_multiple();
+    test_quantum_minimum();
+    test_quantum_yields_to_ready_after_one_dispatch();
 
     printf("\nResultado: %d pasaron, %d fallaron.\n", passed, failed);
     return failed == 0 ? 0 : 1;
