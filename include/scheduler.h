@@ -9,8 +9,8 @@
 #include "task.h"
 
 /* Resultado de un despacho, para quien quiera observar/registrar el
- * progreso (consola en M5, log CSV en M7 — los nombres de campo coinciden
- * a proposito con las columnas del log que exige el enunciado). */
+ * progreso (consola, o un log CSV — los nombres de campo coinciden a
+ * proposito con las columnas del log que exige el enunciado). */
 typedef struct {
     uint64_t dispatch;
     uint32_t winner_id;
@@ -27,7 +27,7 @@ typedef struct {
  * responsabilidad exclusiva de quien implemente el observer. */
 typedef void (*DispatchObserver)(const DispatchEvent *event, void *ctx);
 
-/* Ejecuta el bucle principal del scheduler por loteria (M5) sobre `tasks`
+/* Ejecuta el bucle principal del scheduler por loteria sobre `tasks`
  * (`task_count` tareas, ya inicializadas con task_init y en TASK_READY).
  * El hilo que llama a esta funcion actua como scheduler (no crea un hilo
  * dedicado para si mismo) — si crea un pthread por tarea internamente

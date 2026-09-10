@@ -1,17 +1,16 @@
-/* Prueba de integracion del nucleo de concurrencia (M4): task.c + sync.c +
- * worker.c + workload.c trabajando juntos con hilos reales. Todavia no
- * existe scheduler (es M5), asi que aqui actuamos como "scheduler falso":
- * despachamos en un orden fijo por indice, nunca por loteria. Sin
- * framework: assert()-based con contador de pasadas/fallos, al estilo de
- * tests/test_workload.c.
+/* Prueba de integracion del nucleo de concurrencia: task.c + sync.c +
+ * worker.c + workload.c trabajando juntos con hilos reales. El scheduler
+ * real vive en scheduler.c (ver tests/test_scheduler.c); aqui actuamos
+ * como "scheduler falso": despachamos en un orden fijo por indice, nunca
+ * por loteria, para aislar el nucleo de concurrencia de la logica de
+ * sorteo. Sin framework: assert()-based con contador de pasadas/fallos, al
+ * estilo de tests/test_workload.c.
  *
  * El invariante de exclusion (a lo sumo una tarea RUNNING a la vez) no
  * necesita una prueba aparte: sync_dispatch lo verifica con assert() en
  * cada llamada, y si se violara este binario abortaria en vez de terminar
- * limpio. Correr este binario bajo ThreadSanitizer (make test-concurrency
- * con -fsanitize=thread agregado a mano, o ver el comando manual mas abajo)
- * es la forma real de detectar un acceso no protegido que el diseno no
- * haya previsto. */
+ * limpio. Correr este binario bajo ThreadSanitizer (make tsan) es la forma
+ * real de detectar un acceso no protegido que el diseno no haya previsto. */
 
 #include <pthread.h>
 #include <signal.h>
@@ -38,12 +37,12 @@ static void check(int condition, const char *description)
 }
 
 /* Despacha, en cada ronda, la primera tarea READY por indice (nunca por
- * loteria) hasta que no quede ninguna. Ya no es la plantilla del scheduler
- * real (M5 la reemplaza por sync_select_winner, ver sync.h), pero sigue
- * sirviendo para probar el nucleo de concurrencia en aislamiento de la
- * logica de sorteo. El recorrido de tasks[] se hace bajo sync->mutex
- * directamente (D9 resuelto): ningun codigo debe leer task.state sin
- * sostener el mutex, ni siquiera este scheduler de prueba. */
+ * loteria) hasta que no quede ninguna. No es la plantilla del scheduler
+ * real (ver sync_select_winner en sync.h), pero sigue sirviendo para
+ * probar el nucleo de concurrencia en aislamiento de la logica de sorteo.
+ * El recorrido de tasks[] se hace bajo sync->mutex directamente: ningun
+ * codigo debe leer task.state sin sostener el mutex, ni siquiera este
+ * scheduler de prueba. */
 static void run_fake_scheduler(Sync *sync, Task *tasks, size_t count)
 {
     for (;;) {
@@ -103,7 +102,7 @@ static void test_single_task(void)
 
     check(tasks[0].state == TASK_FINISHED, "la unica tarea termina en TASK_FINISHED");
     check(tasks[0].completed_units == tasks[0].work_units, "completed_units == work_units (1 tarea)");
-    check(tasks[0].dispatch_count == 1, "una sola activacion basta (placeholder de M4)");
+    check(tasks[0].dispatch_count == 1, "una sola activacion basta (placeholder temporal del worker)");
 
     task_destroy(&tasks[0]);
     sync_destroy(&sync);
@@ -137,13 +136,13 @@ static void test_three_tasks(void)
     for (int i = 0; i < N; i++) {
         check(tasks[i].state == TASK_FINISHED, "cada tarea termina en TASK_FINISHED");
         check(tasks[i].completed_units == tasks[i].work_units, "completed_units == work_units al terminar");
-        check(tasks[i].dispatch_count == 1, "una sola activacion basta (placeholder de M4)");
+        check(tasks[i].dispatch_count == 1, "una sola activacion basta (placeholder temporal del worker)");
         task_destroy(&tasks[i]);
     }
     sync_destroy(&sync);
 }
 
-/* --- Pruebas de sync_select_winner (M5): el sorteo bajo mutex --- */
+/* --- Pruebas de sync_select_winner: el sorteo bajo mutex --- */
 
 /* Con una sola tarea TASK_READY, siempre debe ganar ella. */
 static void test_select_winner_single_ready(void)
@@ -218,8 +217,9 @@ static void test_select_winner_skips_non_ready(void)
 /* Prueba estadistica: con boletos muy desiguales (10 vs 90 de 100
  * activos), la tarea con mas boletos debe ganar el sorteo bastante mas
  * seguido a largo plazo. Se usa una banda amplia (no un valor exacto)
- * porque el sesgo leve de modulo ya documentado (D4) y el tamano finito de
- * la muestra hacen fragil pedir precision exacta. */
+ * porque el sesgo leve de la operacion modulo en rng_draw_ticket (ver
+ * rng.c) y el tamano finito de la muestra hacen fragil pedir precision
+ * exacta. */
 static void test_select_winner_weighted_distribution(void)
 {
     enum { TRIALS = 4000 };

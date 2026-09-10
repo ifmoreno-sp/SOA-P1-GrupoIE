@@ -1,8 +1,9 @@
-/* Pruebas del bucle del scheduler (M5): task.c + sync.c + worker.c +
+/* Pruebas del bucle del scheduler: task.c + sync.c + worker.c +
  * workload.c + rng.c + scheduler.c trabajando juntos con hilos reales, a
- * traves de la interfaz publica de scheduler_run (sin CLI todavia — eso
- * es integracion en main.c). Sin framework: assert()-based con contador
- * de pasadas/fallos, al estilo de tests/test_concurrency.c.
+ * traves de la interfaz publica de scheduler_run directamente (sin pasar
+ * por la CLI, que se prueba aparte en tests/test_input_validation.sh). Sin
+ * framework: assert()-based con contador de pasadas/fallos, al estilo de
+ * tests/test_concurrency.c.
  *
  * El invariante de exclusion y el sorteo ponderado ya tienen sus propias
  * pruebas en tests/test_concurrency.c (sync_dispatch, sync_select_winner);
@@ -97,7 +98,7 @@ static void test_single_task(void)
         check(ev.dispatch == 1, "el evento reporta dispatch == 1");
         check(ev.winner_id == tasks[0].id, "el evento reporta el id correcto");
         check(ev.run_units == tasks[0].work_units,
-              "run_units == work_units (unica activacion, placeholder de M4)");
+              "run_units == work_units (unica activacion, placeholder temporal del worker)");
         check(ev.completed_units == tasks[0].work_units,
               "completed_units del evento coincide con el final");
         check(ev.state_after == TASK_FINISHED, "state_after == TASK_FINISHED");
@@ -111,7 +112,7 @@ static void test_single_task(void)
 }
 
 /* Varias tareas con trabajo distinto: todas deben terminar, y ninguna debe
- * ganar mas de un despacho (con el placeholder de M4, cada despacho agota
+ * ganar mas de un despacho (con el placeholder temporal del worker, cada despacho agota
  * el trabajo restante de su ganadora de una sola vez). */
 static void test_multiple_tasks_all_finish(void)
 {
@@ -133,7 +134,7 @@ static void test_multiple_tasks_all_finish(void)
                                                        record_event, &log);
 
     check(dispatches == N,
-          "N tareas (placeholder de M4) toman exactamente N despachos");
+          "N tareas (placeholder temporal del worker) toman exactamente N despachos");
     check(log.count == N, "el observer recibe exactamente N eventos");
 
     int seen[N + 1] = {0}; /* indexado por id (1..N) */
@@ -203,7 +204,7 @@ static void test_max_dispatches_stops_and_joins_cleanly(void)
 
 int main(void)
 {
-    printf("Pruebas del bucle del scheduler (M5):\n");
+    printf("Pruebas del bucle del scheduler:\n");
     test_single_task();
     test_multiple_tasks_all_finish();
     test_max_dispatches_stops_and_joins_cleanly();

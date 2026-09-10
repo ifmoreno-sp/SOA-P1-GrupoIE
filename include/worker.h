@@ -18,10 +18,10 @@ typedef struct {
  * arg debe apuntar a un WorkerArgs valido durante toda la vida del hilo.
  *
  * Ciclo: espera ser despachado (sync_wait_for_dispatch), ejecuta su
- * trabajo (workload_run_units — en M4, siempre todo el trabajo restante
- * de una sola vez; M6 reemplaza esto por la logica real de modos), avisa
- * al scheduler (sync_finish_turn) y retorna si la tarea quedo FINISHED, o
- * vuelve a esperar si quedo READY.
+ * trabajo (workload_run_units — por ahora, siempre todo el trabajo
+ * restante de una sola vez; se reemplazara por la logica real de modos),
+ * avisa al scheduler (sync_finish_turn) y retorna si la tarea quedo
+ * FINISHED, o vuelve a esperar si quedo READY.
  *
  * No usa sleep/usleep. No llama funciones pthread_mutex_ ni pthread_cond_
  * de forma directa: todo pasa por las funciones de sync.h. */

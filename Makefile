@@ -54,8 +54,8 @@ $(BUILD_DIR)/test_workload: tests/test_workload.c src/task.c src/workload.c incl
 test-concurrency: $(BUILD_DIR)/test_concurrency
 	./$(BUILD_DIR)/test_concurrency
 
-# src/rng.c es dependencia desde M5: sync_select_winner (sync.c) sortea
-# boletos con el RNG del proyecto.
+# src/rng.c es dependencia de sync.c: sync_select_winner sortea boletos
+# con el RNG del proyecto.
 $(BUILD_DIR)/test_concurrency: tests/test_concurrency.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c include/task.h include/sync.h include/worker.h include/workload.h include/rng.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ tests/test_concurrency.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c
 

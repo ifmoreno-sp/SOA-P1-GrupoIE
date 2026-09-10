@@ -10,9 +10,9 @@
 #include "sync.h"
 #include "task.h"
 
-/* Observer de scheduler_run para este M5: imprime cada despacho a consola
- * a medida que ocurre. El resumen final legible y el log CSV en archivo
- * son responsabilidad de M7 — este observer es deliberadamente minimo. */
+/* Observer de scheduler_run: imprime cada despacho a consola a medida que
+ * ocurre. El resumen final legible y el log CSV en archivo se agregan
+ * aparte — este observer es deliberadamente minimo. */
 static void print_dispatch(const DispatchEvent *event, void *ctx)
 {
     (void)ctx;

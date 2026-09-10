@@ -47,8 +47,8 @@ int sync_init(Sync *sync);
  * No destruye los cond_worker de cada Task — eso lo hace task_destroy. */
 void sync_destroy(Sync *sync);
 
-/* Llamada por el scheduler (en M4, el test de integracion; en M5, el
- * bucle real de main()) para despachar a la tarea ganadora.
+/* Llamada por el scheduler (el test de integracion, o el bucle real de
+ * main()) para despachar a la tarea ganadora.
  *
  * Precondicion: winner_index < task_count; tasks[winner_index].state == TASK_READY.
  *
@@ -64,10 +64,9 @@ void sync_destroy(Sync *sync);
  * debe tener el mutex tomado al invocarla. */
 void sync_dispatch(Sync *sync, Task *tasks, size_t task_count, size_t winner_index);
 
-/* Decide la siguiente ganadora de la loteria (M5): suma los boletos de las
+/* Decide la siguiente ganadora de la loteria: suma los boletos de las
  * tareas TASK_READY, sortea un boleto en [1, active_tickets] con `rng`, y
- * localiza a su propietaria por suma acumulada. Resuelve D9 (ver
- * decisiones_diseno.md del repo de conocimiento): es la unica funcion que
+ * localiza a su propietaria por suma acumulada. Es la unica funcion que
  * recorre tasks[] para decidir un ganador, y lo hace bajo sync->mutex, en
  * vez de que el llamador (scheduler.c) lea task.state directamente.
  *
@@ -117,8 +116,8 @@ int sync_wait_for_dispatch(Sync *sync, Task *task);
 
 /* Le pide a todas las tareas TASK_READY que dejen de esperar y retornen sin
  * ejecutar mas trabajo, sin cambiar su estado. Uso exclusivo del modo
- * --max-dispatches (M5), cuando el scheduler decide cortar la observacion
- * antes de que el conjunto de tareas activas cambie por si solo.
+ * --max-dispatches, cuando el scheduler decide cortar la observacion antes
+ * de que el conjunto de tareas activas cambie por si solo.
  *
  * Precondicion: ninguna tarea esta en TASK_RUNNING. El llamador no debe
  * tener sync->mutex tomado al invocarla.
