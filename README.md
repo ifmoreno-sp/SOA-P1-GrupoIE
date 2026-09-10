@@ -53,32 +53,3 @@ Por qué:
   superficie extra de bugs por un beneficio indetectable en este caso de
   uso.
 
-### Quién puede leer el estado de una tarea sin el mutex (`sync_select_winner`)
-
-El bucle del scheduler (M5, [`src/scheduler.c`](src/scheduler.c)) necesita
-recorrer todas las tareas en cada ronda para sumar los boletos de las que
-están `TASK_READY` y localizar a la ganadora del sorteo. Durante el
-Milestone 4, esa misma necesidad se resolvió provisionalmente con un
-recorrido *sin* sostener el mutex en el "scheduler falso" de las pruebas de
-integración — seguro en la práctica (ninguna tarea está `RUNNING` en ese
-punto del protocolo), pero inconsistente con la regla que el propio diseño
-de M4 estableció: *"ningún código nuevo debe leer los campos de una `Task`
-sin sostener `sync->mutex`, salvo el propio hilo trabajador"*.
-
-**Decisión: agregar `sync_select_winner` a `sync.c`, que hace el sorteo
-completo (sumar boletos, sortear con el RNG, localizar ganadora) bajo el
-mutex, en una sola función.** El scheduler ya no recorre `tasks[]`
-directamente — solo llama a esta función y usa su resultado. Esto mantiene
-la regla sin excepciones, en vez de documentar el recorrido sin mutex como
-un caso especial aceptado.
-
-Por qué no la segunda opción (documentar la excepción): la razón por la que
-es seguro hoy ("nunca se lee mientras hay una tarea `RUNNING`") es una
-invariante *implícita* del orden de llamadas del bucle, no algo que el
-compilador o un sanitizer puedan verificar. Dejarla como excepción
-documentada habría significado que cualquier código futuro (la extensión de
-M9, o un log de progreso en vivo) que necesitara leer el estado de una
-tarea tendría que redescubrir y respetar esa misma regla no escrita.
-Centralizarla en una función de `sync.c` la convierte en parte del
-protocolo verificable, no en una convención que hay que recordar.
-
