@@ -17,7 +17,7 @@ SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 # Ninguno de estos targets produce un archivo con su propio nombre.
-.PHONY: all test test-rng test-workload test-concurrency test-scheduler test-modes asan tsan clean
+.PHONY: all test test-rng test-workload test-concurrency test-scheduler test-modes test-results asan tsan clean
 
 all: $(TARGET)
 
@@ -36,7 +36,7 @@ $(BUILD_DIR):
 # Corre las pruebas de validación de entrada (CSV y argumentos) y las
 # pruebas unitarias de los módulos que ya las tienen (rng, workload, el
 # núcleo de concurrencia, el scheduler y los modos de ejecución).
-test: all test-rng test-workload test-concurrency test-scheduler test-modes
+test: all test-rng test-workload test-concurrency test-scheduler test-modes test-results
 	bash tests/test_input_validation.sh
 
 test-rng: $(BUILD_DIR)/test_rng
@@ -79,6 +79,12 @@ $(BUILD_DIR)/test_modes: tests/test_execution_modes.c src/task.c src/sync.c src/
 # para no mezclar objetos con los de una compilacion normal; TARGET no
 # cambia, asi que tests/test_input_validation.sh (que invoca ./lottery_scheduler
 # a secas) sigue funcionando sin modificaciones.
+test-results: $(BUILD_DIR)/test_results
+	./$(BUILD_DIR)/test_results
+
+$(BUILD_DIR)/test_results: tests/test_results.c src/task.c src/workload.c src/results.c include/task.h include/workload.h include/results.h include/scheduler.h include/cli.h include/sync.h include/rng.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ tests/test_results.c src/task.c src/workload.c src/results.c
+
 asan:
 	$(MAKE) BUILD_DIR=build-asan CFLAGS="$(CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer" test
 
