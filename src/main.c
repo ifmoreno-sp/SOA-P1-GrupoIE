@@ -5,22 +5,23 @@
 
 #include "cli.h"
 #include "csv_parser.h"
+#include "results.h"
 #include "rng.h"
 #include "scheduler.h"
 #include "sync.h"
 #include "task.h"
 
-/* Observer de scheduler_run: imprime cada despacho a consola a medida que
- * ocurre. El resumen final legible y el log CSV en archivo se agregan
- * aparte — este observer es deliberadamente minimo. */
-static void print_dispatch(const DispatchEvent *event, void *ctx)
+/* Abre `path` en modo escritura o termina el programa con un mensaje
+ * claro y codigo de salida distinto de cero. `label` identifica cual
+ * archivo fallo (--log o --summary) en el mensaje de error. */
+static FILE *open_output_or_exit(const char *path, const char *label)
 {
-    (void)ctx;
-    printf("despacho %-6llu tarea=%-4u boleto=%u/%llu unidades=%-8u completado=%-8u estado=%s\n",
-           (unsigned long long)event->dispatch, event->winner_id,
-           event->winning_ticket, (unsigned long long)event->active_tickets,
-           event->run_units, event->completed_units,
-           task_state_name(event->state_after));
+    FILE *file = fopen(path, "w");
+    if (file == NULL) {
+        fprintf(stderr, "error: no se pudo abrir %s '%s' para escritura\n", label, path);
+        exit(EXIT_FAILURE);
+    }
+    return file;
 }
 
 int main(int argc, char *argv[])
@@ -76,19 +77,41 @@ int main(int argc, char *argv[])
     Sync sync;
     assert(sync_init(&sync) == 0);
 
+    FILE *log_file = open_output_or_exit(opts.log_path, "--log");
+    results_write_log_header(log_file);
+
+    TaskStats stats[CSV_PARSER_MAX_TASKS] = {0};
+    ResultsContext results;
+    results_context_init(&results, log_file, tasks, task_count, stats);
+
     uint64_t max_dispatches = opts.has_max_dispatches ? opts.max_dispatches : 0;
     uint64_t total_dispatches = scheduler_run(&sync, tasks, task_count, &rng,
                                                opts.mode, opts.quantum, opts.slice_percent,
-                                               max_dispatches, print_dispatch, NULL);
+                                               max_dispatches, results_record_event, &results);
 
-    printf("\ntotal de despachos: %llu\n", (unsigned long long)total_dispatches);
-    printf("%-8s %-10s %-12s %-12s %-10s\n", "id", "tickets", "work_units",
-           "completado", "estado");
+    /* Tareas que quedaron TASK_READY sin terminar: solo pasa si
+     * --max-dispatches corto la observacion (ver postcondicion de
+     * scheduler_run). Se documentan con una fila STOPPED aparte, ya que
+     * no generaron un despacho real que las explique. */
     for (size_t i = 0; i < task_count; i++) {
-        printf("%-8u %-10u %-12u %-12u %-10s\n", tasks[i].id, tasks[i].tickets,
-               tasks[i].work_units, tasks[i].completed_units,
-               task_state_name(tasks[i].state));
+        if (tasks[i].state == TASK_READY) {
+            results_write_stopped_row(log_file, &tasks[i], total_dispatches);
+        }
     }
+    fclose(log_file);
+
+    if (opts.summary_path != NULL) {
+        FILE *summary_file = open_output_or_exit(opts.summary_path, "--summary");
+        results_write_summary_header(summary_file);
+        for (size_t i = 0; i < task_count; i++) {
+            results_write_summary_row(summary_file, &tasks[i], &stats[i],
+                                       results.total_run_units);
+        }
+        fclose(summary_file);
+    }
+
+    printf("total de despachos: %llu\n\n", (unsigned long long)total_dispatches);
+    results_print_console_summary(tasks, stats, task_count, results.total_run_units);
 
     sync_destroy(&sync);
     for (size_t i = 0; i < task_count; i++) {
