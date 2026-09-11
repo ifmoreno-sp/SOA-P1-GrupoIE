@@ -10,6 +10,8 @@ void results_context_init(ResultsContext *ctx, FILE *log_file,
     ctx->task_count = task_count;
     ctx->stats = stats;
     ctx->total_run_units = 0;
+    ctx->last_winner_id = 0;
+    ctx->has_last_winner = 0;
 }
 
 void results_write_log_header(FILE *file)
@@ -50,12 +52,30 @@ void results_record_event(const DispatchEvent *event, void *ctx_ptr)
     s->last_dispatch = event->dispatch;
     s->run_units_sum += event->run_units;
     ctx->total_run_units += event->run_units;
+
+    ctx->last_winner_id = event->winner_id;
+    ctx->has_last_winner = 1;
 }
 
 void results_write_stopped_row(FILE *file, const Task *task, uint64_t dispatch_number)
 {
     fprintf(file, "%llu,%u,0,0,0,%u,STOPPED\n",
             (unsigned long long)dispatch_number, task->id, task->completed_units);
+}
+
+void results_write_stopped_rows(FILE *file, const ResultsContext *ctx,
+                                 const Task *tasks, size_t task_count,
+                                 uint64_t dispatch_number)
+{
+    for (size_t i = 0; i < task_count; i++) {
+        if (tasks[i].state != TASK_READY) {
+            continue;
+        }
+        if (ctx->has_last_winner && tasks[i].id == ctx->last_winner_id) {
+            continue; /* ya tiene su propia fila real para este mismo despacho */
+        }
+        results_write_stopped_row(file, &tasks[i], dispatch_number);
+    }
 }
 
 void results_write_summary_header(FILE *file)

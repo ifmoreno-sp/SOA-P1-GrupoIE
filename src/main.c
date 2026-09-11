@@ -91,13 +91,10 @@ int main(int argc, char *argv[])
 
     /* Tareas que quedaron TASK_READY sin terminar: solo pasa si
      * --max-dispatches corto la observacion (ver postcondicion de
-     * scheduler_run). Se documentan con una fila STOPPED aparte, ya que
-     * no generaron un despacho real que las explique. */
-    for (size_t i = 0; i < task_count; i++) {
-        if (tasks[i].state == TASK_READY) {
-            results_write_stopped_row(log_file, &tasks[i], total_dispatches);
-        }
-    }
+     * scheduler_run). Se documentan con una fila STOPPED aparte (excepto
+     * la ganadora del ultimo despacho real, que ya tiene su propia fila
+     * para ese mismo numero de despacho -- ver results_write_stopped_rows). */
+    results_write_stopped_rows(log_file, &results, tasks, task_count, total_dispatches);
     fclose(log_file);
 
     if (opts.summary_path != NULL) {

@@ -31,6 +31,8 @@ typedef struct {
     size_t task_count;
     TaskStats *stats;        /* [task_count], inicializado en cero por el llamador */
     uint64_t total_run_units; /* suma acumulada sobre todas las tareas */
+    uint32_t last_winner_id; /* id de la ganadora del ultimo evento registrado */
+    int has_last_winner;     /* 0 hasta el primer results_record_event */
 } ResultsContext;
 
 /* Inicializa ctx con los punteros dados. Precondicion: stats apunta a un
@@ -71,6 +73,23 @@ void results_record_event(const DispatchEvent *event, void *ctx);
  * todas representan el mismo instante de corte, no despachos
  * independientes. */
 void results_write_stopped_row(FILE *file, const Task *task, uint64_t dispatch_number);
+
+/* Escribe una fila STOPPED (results_write_stopped_row) para cada tarea en
+ * tasks[] que siga en TASK_READY, EXCEPTO la ganadora del ultimo evento
+ * registrado en ctx (ctx->last_winner_id).
+ *
+ * Por que la excepcion: esa tarea ya tiene su propia fila real y precisa
+ * para el mismo dispatch_number (la que escribio results_record_event en
+ * el ultimo despacho), documentando su estado exacto al cierre de la
+ * ventana. Agregarle encima una fila STOPPED duplicaria ese numero de
+ * despacho para la misma tarea sin aportar informacion nueva.
+ *
+ * Llamar una sola vez, despues de que scheduler_run retorna. Si
+ * ctx->has_last_winner es 0 (nunca se registro ningun evento), ninguna
+ * tarea queda excluida. */
+void results_write_stopped_rows(FILE *file, const ResultsContext *ctx,
+                                 const Task *tasks, size_t task_count,
+                                 uint64_t dispatch_number);
 
 /* Escribe el encabezado del CSV de resumen final en `file`. */
 void results_write_summary_header(FILE *file);

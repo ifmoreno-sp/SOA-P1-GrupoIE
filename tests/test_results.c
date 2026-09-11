@@ -96,6 +96,56 @@ static void test_record_event_writes_row_and_accumulates_stats(void)
     task_destroy(&tasks[1]);
 }
 
+/* Regresion: la ganadora del ultimo despacho real (que sigue TASK_READY
+ * porque no termino en esa activacion) no debe recibir ADEMAS una fila
+ * STOPPED -- ya tiene su propia fila real para ese mismo dispatch_number.
+ * Sin la exclusion por ctx->last_winner_id, esta tarea aparecia dos veces
+ * para el mismo numero de despacho (bug encontrado corriendo el binario
+ * real con --max-dispatches 1). */
+static void test_stopped_rows_excludes_last_winner(void)
+{
+    Task tasks[3];
+    task_init(&tasks[0], 1, 10, 1000); /* nunca gano: debe recibir STOPPED */
+    task_init(&tasks[1], 2, 20, 1000); /* ganadora del ultimo despacho: NO debe recibir STOPPED */
+    task_init(&tasks[2], 3, 30, 1000);
+    tasks[2].state = TASK_FINISHED; /* ya termino: tampoco debe recibir STOPPED */
+
+    TaskStats stats[3] = {0};
+    char *log_buf = NULL;
+    size_t log_size = 0;
+    FILE *log_mem = open_memstream(&log_buf, &log_size);
+
+    ResultsContext ctx;
+    results_context_init(&ctx, log_mem, tasks, 3, stats);
+
+    DispatchEvent ev = {.dispatch = 5,
+                        .winner_id = 2,
+                        .winning_ticket = 15,
+                        .active_tickets = 30,
+                        .run_units = 10,
+                        .completed_units = 10,
+                        .state_after = TASK_READY};
+    results_record_event(&ev, &ctx);
+    tasks[1].state = TASK_READY; /* resultado real de esa activacion: sigue READY */
+
+    char *stopped_buf = NULL;
+    size_t stopped_size = 0;
+    FILE *stopped_mem = open_memstream(&stopped_buf, &stopped_size);
+    results_write_stopped_rows(stopped_mem, &ctx, tasks, 3, 5);
+    fclose(stopped_mem);
+    fclose(log_mem);
+
+    check(strcmp(stopped_buf, "5,1,0,0,0,0,STOPPED\n") == 0,
+          "solo la tarea que nunca gano recibe fila STOPPED (no la ganadora del ultimo "
+          "despacho, no la ya FINISHED)");
+
+    free(log_buf);
+    free(stopped_buf);
+    task_destroy(&tasks[0]);
+    task_destroy(&tasks[1]);
+    task_destroy(&tasks[2]);
+}
+
 static void test_stopped_row(void)
 {
     Task task;
@@ -176,6 +226,7 @@ int main(void)
     printf("Pruebas del modulo de registro y resultados:\n");
     test_log_header();
     test_record_event_writes_row_and_accumulates_stats();
+    test_stopped_rows_excludes_last_winner();
     test_stopped_row();
     test_summary_row_and_observed_share();
 
