@@ -6,16 +6,22 @@
 #include "worker.h"
 
 uint64_t scheduler_run(Sync *sync, Task *tasks, size_t task_count, Rng *rng,
+                        SchedulerMode mode, uint32_t quantum, uint32_t slice_percent,
                         uint64_t max_dispatches, DispatchObserver observer,
                         void *observer_ctx)
 {
     assert(task_count > 0 && task_count <= CSV_PARSER_MAX_TASKS);
+    assert(mode == MODE_COOPERATIVE ? (slice_percent >= 1 && slice_percent <= 100)
+                                     : quantum >= 1);
 
     pthread_t threads[CSV_PARSER_MAX_TASKS];
     WorkerArgs args[CSV_PARSER_MAX_TASKS];
     for (size_t i = 0; i < task_count; i++) {
         args[i].task = &tasks[i];
         args[i].sync = sync;
+        args[i].mode = mode;
+        args[i].quantum = quantum;
+        args[i].slice_percent = slice_percent;
     }
 
     /* pthread_create solo falla por agotamiento de recursos del sistema:

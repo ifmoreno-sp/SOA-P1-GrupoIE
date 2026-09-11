@@ -60,13 +60,19 @@ static void on_scheduler_timeout(int sig)
     _exit(1);
 }
 
+/* mode/quantum/slice_percent fijos en MODE_COOPERATIVE con slice_percent=100:
+ * reproduce exactamente el comportamiento que estas pruebas ya esperaban
+ * antes de M6 (cada despacho agota el trabajo restante de una sola vez),
+ * ya que decidir el corte real por modo es responsabilidad de M6/worker.c,
+ * no de este archivo. */
 static uint64_t scheduler_run_with_timeout(Sync *sync, Task *tasks, size_t count,
                                             Rng *rng, uint64_t max_dispatches,
                                             DispatchObserver observer, void *ctx)
 {
     signal(SIGALRM, on_scheduler_timeout);
     alarm(5);
-    uint64_t result = scheduler_run(sync, tasks, count, rng, max_dispatches, observer, ctx);
+    uint64_t result = scheduler_run(sync, tasks, count, rng, MODE_COOPERATIVE, 0, 100,
+                                     max_dispatches, observer, ctx);
     alarm(0);
     return result;
 }

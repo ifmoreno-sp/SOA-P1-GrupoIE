@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
 
     uint64_t max_dispatches = opts.has_max_dispatches ? opts.max_dispatches : 0;
     uint64_t total_dispatches = scheduler_run(&sync, tasks, task_count, &rng,
+                                               opts.mode, opts.quantum, opts.slice_percent,
                                                max_dispatches, print_dispatch, NULL);
 
     printf("\ntotal de despachos: %llu\n", (unsigned long long)total_dispatches);

@@ -17,7 +17,7 @@ SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 # Ninguno de estos targets produce un archivo con su propio nombre.
-.PHONY: all test test-rng test-workload test-concurrency test-scheduler asan tsan clean
+.PHONY: all test test-rng test-workload test-concurrency test-scheduler test-modes asan tsan clean
 
 all: $(TARGET)
 
@@ -34,9 +34,9 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 # Corre las pruebas de validación de entrada (CSV y argumentos) y las
-# pruebas unitarias de los módulos que ya las tienen (rng, workload y el
-# núcleo de concurrencia).
-test: all test-rng test-workload test-concurrency test-scheduler
+# pruebas unitarias de los módulos que ya las tienen (rng, workload, el
+# núcleo de concurrencia, el scheduler y los modos de ejecución).
+test: all test-rng test-workload test-concurrency test-scheduler test-modes
 	bash tests/test_input_validation.sh
 
 test-rng: $(BUILD_DIR)/test_rng
@@ -55,15 +55,24 @@ test-concurrency: $(BUILD_DIR)/test_concurrency
 	./$(BUILD_DIR)/test_concurrency
 
 # src/rng.c es dependencia de sync.c: sync_select_winner sortea boletos
-# con el RNG del proyecto.
-$(BUILD_DIR)/test_concurrency: tests/test_concurrency.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c include/task.h include/sync.h include/worker.h include/workload.h include/rng.h | $(BUILD_DIR)
+# con el RNG del proyecto. include/cli.h es dependencia de worker.h: los
+# modos de ejecucion (M6) viven en WorkerArgs como un SchedulerMode.
+$(BUILD_DIR)/test_concurrency: tests/test_concurrency.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c include/task.h include/sync.h include/worker.h include/workload.h include/rng.h include/cli.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ tests/test_concurrency.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c
 
 test-scheduler: $(BUILD_DIR)/test_scheduler
 	./$(BUILD_DIR)/test_scheduler
 
-$(BUILD_DIR)/test_scheduler: tests/test_scheduler.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c src/scheduler.c include/task.h include/sync.h include/worker.h include/workload.h include/rng.h include/scheduler.h include/csv_parser.h | $(BUILD_DIR)
+$(BUILD_DIR)/test_scheduler: tests/test_scheduler.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c src/scheduler.c include/task.h include/sync.h include/worker.h include/workload.h include/rng.h include/scheduler.h include/csv_parser.h include/cli.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ tests/test_scheduler.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c src/scheduler.c
+
+test-modes: $(BUILD_DIR)/test_modes
+	./$(BUILD_DIR)/test_modes
+
+# Mismas dependencias de src/rng.c/include/cli.h que test-concurrency, por
+# la misma razon (sync.c llama al RNG; worker.h expone SchedulerMode).
+$(BUILD_DIR)/test_modes: tests/test_execution_modes.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c include/task.h include/sync.h include/worker.h include/workload.h include/rng.h include/cli.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ tests/test_execution_modes.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c
 
 # Reconstruye y corre toda la suite (mismos targets que test) con
 # AddressSanitizer + UndefinedBehaviorSanitizer. Usa su propio BUILD_DIR

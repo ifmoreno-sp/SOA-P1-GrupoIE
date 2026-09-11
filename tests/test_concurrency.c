@@ -94,7 +94,10 @@ static void test_single_task(void)
     check(sync_init(&sync) == 0, "sync_init exitoso (1 tarea)");
 
     pthread_t threads[1];
-    WorkerArgs args[1] = {{.task = &tasks[0], .sync = &sync}};
+    /* slice_percent=100 reproduce el placeholder de M4: todo el trabajo
+     * restante en una sola activacion (ceil(work_units*100/100)=work_units). */
+    WorkerArgs args[1] = {{.task = &tasks[0], .sync = &sync,
+                            .mode = MODE_COOPERATIVE, .slice_percent = 100}};
     check(worker_pool_start(threads, args, 1) == 0, "worker_pool_start crea el hilo (1 tarea)");
 
     run_fake_scheduler(&sync, tasks, 1);
@@ -102,7 +105,7 @@ static void test_single_task(void)
 
     check(tasks[0].state == TASK_FINISHED, "la unica tarea termina en TASK_FINISHED");
     check(tasks[0].completed_units == tasks[0].work_units, "completed_units == work_units (1 tarea)");
-    check(tasks[0].dispatch_count == 1, "una sola activacion basta (placeholder temporal del worker)");
+    check(tasks[0].dispatch_count == 1, "una sola activacion basta (slice_percent=100)");
 
     task_destroy(&tasks[0]);
     sync_destroy(&sync);
@@ -126,6 +129,10 @@ static void test_three_tasks(void)
     for (int i = 0; i < N; i++) {
         args[i].task = &tasks[i];
         args[i].sync = &sync;
+        /* slice_percent=100: cada tarea corre todo su trabajo en una sola
+         * activacion, igual que el placeholder original de M4. */
+        args[i].mode = MODE_COOPERATIVE;
+        args[i].slice_percent = 100;
     }
     check(worker_pool_start(threads, args, N) == 0, "worker_pool_start crea los 3 hilos");
 
@@ -136,7 +143,7 @@ static void test_three_tasks(void)
     for (int i = 0; i < N; i++) {
         check(tasks[i].state == TASK_FINISHED, "cada tarea termina en TASK_FINISHED");
         check(tasks[i].completed_units == tasks[i].work_units, "completed_units == work_units al terminar");
-        check(tasks[i].dispatch_count == 1, "una sola activacion basta (placeholder temporal del worker)");
+        check(tasks[i].dispatch_count == 1, "una sola activacion basta (slice_percent=100)");
         task_destroy(&tasks[i]);
     }
     sync_destroy(&sync);
