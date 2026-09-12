@@ -1,5 +1,7 @@
 # Build artifacts
 build/
+build-asan/
+build-tsan/
 lottery_scheduler
 *.o
 *.out
@@ -7,6 +9,10 @@ lottery_scheduler
 # Resultados generados por experimentos (no versionar corridas masivas)
 results/*
 !results/.gitkeep
+
+# Python (scripts/casos_enunciado/*.py)
+__pycache__/
+*.pyc
 
 # macOS
 .DS_Store
