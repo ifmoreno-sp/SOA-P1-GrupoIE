@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
-# Pruebas del Milestone 1: parseo de CSV, validaciones de entrada y CLI.
-# Cubren el Caso 1 del enunciado (rechazo con codigo distinto de cero y sin
-# ejecucion parcial). Los 7 casos completos llegan con el Milestone 10.
+# Pruebas extra de validacion de CSV/CLI, mas alla de los 4 escenarios
+# minimos del Caso 1 del enunciado (ver scripts/casos_enunciado/caso1_validacion.sh
+# para esos). Estas nacieron en Milestone 1 (parseo/CLI) y se reforzaron en
+# Milestone 8 (ausencia de ejecucion parcial); viven aqui porque son
+# cobertura de ingenieria del ciclo normal de desarrollo, no evidencia que
+# pida el enunciado.
+#
+# Rutas relativas ("tests/fixtures", el binario "./lottery_scheduler"):
+# este script asume que se invoca desde la raiz del repo -- ver como lo
+# invoca `make test`.
 set -uo pipefail
 
 BIN="./lottery_scheduler"
@@ -39,28 +46,13 @@ expect_failure() {
 }
 
 echo "Entrada valida:"
-expect_success "CSV de 5 tareas en modo quantum" \
-    "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 \
-    --seed 2026 --log /dev/null
 expect_success "CSV de 5 tareas en modo cooperative" \
     "$BIN" --input "$FIXTURES/valid_5.csv" --mode cooperative --slice-percent 10 \
     --seed 2026 --log /dev/null --summary /dev/null --max-dispatches 100
 
-echo "Validacion del CSV:"
-expect_failure "id duplicado" \
-    "$BIN" --input "$FIXTURES/invalid_duplicate_id.csv" --mode quantum \
-    --quantum 10 --seed 2026 --log /dev/null
-expect_failure "tickets en cero" \
-    "$BIN" --input "$FIXTURES/invalid_zero_tickets.csv" --mode quantum \
-    --quantum 10 --seed 2026 --log /dev/null
+echo "Validacion del CSV (mas alla de los 4 casos minimos):"
 expect_failure "work_units en cero" \
     "$BIN" --input "$FIXTURES/invalid_zero_work_units.csv" --mode quantum \
-    --quantum 10 --seed 2026 --log /dev/null
-expect_failure "fila incompleta" \
-    "$BIN" --input "$FIXTURES/invalid_incomplete_row.csv" --mode quantum \
-    --quantum 10 --seed 2026 --log /dev/null
-expect_failure "menos de 5 tareas" \
-    "$BIN" --input "$FIXTURES/invalid_too_few_tasks.csv" --mode quantum \
     --quantum 10 --seed 2026 --log /dev/null
 expect_failure "suma de tickets sobre UINT32_MAX" \
     "$BIN" --input "$FIXTURES/invalid_tickets_overflow.csv" --mode quantum \
@@ -148,12 +140,13 @@ expect_failure "--summary con ruta invalida (directorio inexistente)" \
     "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 --seed 2026 \
     --log /dev/null --summary "$BAD_DIR/summary.csv"
 
-echo "Sin ejecucion parcial:"
+# Los checks generales de "sin ejecucion parcial" (CSV invalido / --summary
+# invalido) viven en scripts/casos_enunciado/caso1_validacion.sh -- son
+# evidencia del Caso 1 del enunciado, no cobertura extra. Aqui se quedan
+# solo los que no estan cubiertos alla: un escenario de CLI invalida (no
+# uno de los 4 del enunciado) y la validacion de --yield-config (M9).
+echo "Sin ejecucion parcial (escenarios no cubiertos en caso1_validacion.sh):"
 
-# Corre el binario con --log apuntando a un archivo temporal recien
-# eliminado; si el comando falla como se espera, --log NUNCA debio
-# crearse (la validacion de CSV/CLI ocurre antes de abrir cualquier
-# archivo de salida).
 TMP_LOG="$(mktemp -u)"
 expect_no_log_created() {
     local desc="$1"
@@ -170,29 +163,12 @@ expect_no_log_created() {
         passed=$((passed + 1))
     fi
 }
-expect_no_log_created "CSV invalido no crea --log" \
-    "$BIN" --input "$FIXTURES/invalid_zero_tickets.csv" --mode quantum --quantum 10 --seed 2026
 expect_no_log_created "CLI invalida no crea --log" \
     "$BIN" --input "$FIXTURES/valid_5.csv" --mode rr --quantum 10 --seed 2026
 expect_no_log_created "yield-config invalido no crea --log" \
     "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 --seed 2026 \
     --yield-config "$FIXTURES/yield_invalid_unknown_id.csv"
 rm -f "$TMP_LOG"
-
-# --summary invalido debe fallar ANTES de correr el scheduler: el log de
-# eventos (que si tiene una ruta valida) debe quedar vacio, no con la
-# corrida completa desperdiciada.
-TMP_LOG2="$(mktemp)"
-"$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 --seed 2026 \
-    --log "$TMP_LOG2" --summary "$BAD_DIR/summary.csv" >"$OUT" 2>&1
-if [ -s "$TMP_LOG2" ]; then
-    echo "  FALLO- --summary invalido: el log de eventos se escribio de todas formas (ejecucion desperdiciada)"
-    failed=$((failed + 1))
-else
-    echo "  ok   - --summary invalido corta antes de escribir el log de eventos"
-    passed=$((passed + 1))
-fi
-rm -f "$TMP_LOG2"
 
 echo
 echo "Resultado: $passed pasaron, $failed fallaron."

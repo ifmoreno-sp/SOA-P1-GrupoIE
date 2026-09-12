@@ -10,6 +10,10 @@ lottery_scheduler
 results/*
 !results/.gitkeep
 
+# Python (scripts/casos_enunciado/*.py)
+__pycache__/
+*.pyc
+
 # macOS
 .DS_Store
 

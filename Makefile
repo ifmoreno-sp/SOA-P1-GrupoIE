@@ -17,7 +17,7 @@ SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 # Ninguno de estos targets produce un archivo con su propio nombre.
-.PHONY: all test test-rng test-workload test-concurrency test-scheduler test-modes test-results test-compensation asan tsan clean
+.PHONY: all test test-rng test-workload test-concurrency test-scheduler test-modes test-results test-compensation caso5-terminacion caso6-modos asan tsan casos-enunciado casos-enunciado-tsan clean
 
 all: $(TARGET)
 
@@ -36,8 +36,12 @@ $(BUILD_DIR):
 # Corre las pruebas de validación de entrada (CSV y argumentos) y las
 # pruebas unitarias de los módulos que ya las tienen (rng, workload, el
 # núcleo de concurrencia, el scheduler y los modos de ejecución).
+# tests/test_input_validation.sh es la validación extra de ingeniería
+# (Milestone 1/8); scripts/casos_enunciado/caso1_validacion.sh son los 4
+# escenarios mínimos del Caso 1 del enunciado -- no se solapan.
 test: all test-rng test-workload test-concurrency test-scheduler test-modes test-results test-compensation
 	bash tests/test_input_validation.sh
+	bash scripts/casos_enunciado/caso1_validacion.sh
 
 test-rng: $(BUILD_DIR)/test_rng
 	./$(BUILD_DIR)/test_rng
@@ -74,11 +78,28 @@ test-modes: $(BUILD_DIR)/test_modes
 $(BUILD_DIR)/test_modes: tests/test_execution_modes.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c include/task.h include/sync.h include/worker.h include/workload.h include/rng.h include/cli.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ tests/test_execution_modes.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c
 
+# Caso 5 del enunciado (Terminacion): la prueba minima, extraida de
+# tests/test_scheduler.c -- ver scripts/casos_enunciado/caso5_terminacion.c.
+caso5-terminacion: $(BUILD_DIR)/caso5_terminacion
+	./$(BUILD_DIR)/caso5_terminacion
+
+$(BUILD_DIR)/caso5_terminacion: scripts/casos_enunciado/caso5_terminacion.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c src/scheduler.c include/task.h include/sync.h include/worker.h include/workload.h include/rng.h include/scheduler.h include/csv_parser.h include/cli.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ scripts/casos_enunciado/caso5_terminacion.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c src/scheduler.c
+
+# Caso 6 del enunciado (Modos): la prueba minima, extraida de
+# tests/test_execution_modes.c -- ver scripts/casos_enunciado/caso6_modos.c.
+caso6-modos: $(BUILD_DIR)/caso6_modos
+	./$(BUILD_DIR)/caso6_modos
+
+$(BUILD_DIR)/caso6_modos: scripts/casos_enunciado/caso6_modos.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c include/task.h include/sync.h include/worker.h include/workload.h include/rng.h include/cli.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ scripts/casos_enunciado/caso6_modos.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c
+
 # Reconstruye y corre toda la suite (mismos targets que test) con
 # AddressSanitizer + UndefinedBehaviorSanitizer. Usa su propio BUILD_DIR
 # para no mezclar objetos con los de una compilacion normal; TARGET no
-# cambia, asi que tests/test_input_validation.sh (que invoca ./lottery_scheduler
-# a secas) sigue funcionando sin modificaciones.
+# cambia, asi que tests/test_input_validation.sh y
+# scripts/casos_enunciado/caso1_validacion.sh (que invocan ./lottery_scheduler
+# a secas) siguen funcionando sin modificaciones.
 test-results: $(BUILD_DIR)/test_results
 	./$(BUILD_DIR)/test_results
 
@@ -106,6 +127,59 @@ asan:
 # targets separados con su propio BUILD_DIR cada uno.
 tsan:
 	$(MAKE) BUILD_DIR=build-tsan CFLAGS="$(CFLAGS) -fsanitize=thread" test
+
+# Corre los 7 casos minimos del enunciado. Separado a proposito de `test`:
+# esto es la evidencia de cumplimiento del enunciado, no el ciclo rapido
+# de desarrollo -- Casos 3/4 corren 30 semillas cada uno y el Caso 7
+# reconstruye dos binarios con sanitizers.
+#
+# Casos 1/5/6 reportan solo el escenario minimo que nombra el enunciado,
+# no toda la suite de ingenieria de sus milestones de origen (M1/M5/M6):
+# esa cobertura extra se quedo en tests/ (make test-scheduler, make
+# test-modes, tests/test_input_validation.sh). scripts/casos_enunciado/
+# tiene un punto de entrada delgado para cada caso (caso1_validacion.sh,
+# caso5_terminacion.sh, caso6_modos.sh) que solo invoca esa prueba minima,
+# para que los 7 casos sean invocables desde un mismo lugar.
+#
+# El Caso 7 corre aqui solo con ASan+UBSan. La variante con ThreadSanitizer
+# vive aparte, en `casos-enunciado-tsan`, porque TSan falla bajo la
+# emulacion x86_64 de Docker en hosts ARM64 -- se corre fuera de Docker,
+# directo en el host.
+casos-enunciado: all
+	@echo "=== Caso 1 (Validacion) ==="
+	bash scripts/casos_enunciado/caso1_validacion.sh
+	@echo
+	@echo "=== Caso 2 (Reproducibilidad) ==="
+	bash scripts/casos_enunciado/caso2_reproducibilidad.sh
+	@echo
+	@echo "=== Caso 3 (Igualdad) ==="
+	python3 scripts/casos_enunciado/caso3_igualdad.py
+	@echo
+	@echo "=== Caso 4 (Proporcionalidad) ==="
+	python3 scripts/casos_enunciado/caso4_proporcionalidad.py
+	@echo
+	@echo "=== Caso 5 (Terminacion) ==="
+	bash scripts/casos_enunciado/caso5_terminacion.sh
+	@echo
+	@echo "=== Caso 6 (Modos) ==="
+	bash scripts/casos_enunciado/caso6_modos.sh
+	@echo
+	@echo "=== Caso 7 (Estres) -- ASan+UBSan ==="
+	$(CC) $(CFLAGS) -fsanitize=address,undefined -I$(INC_DIR) -o /tmp/lottery_caso7_asan $(SRCS)
+	bash scripts/casos_enunciado/caso7_estres.sh /tmp/lottery_caso7_asan "ASan+UBSan"
+	@echo
+	@echo "Nota: correr esto dentro de Docker para verificar fugas de memoria de"
+	@echo "forma confiable (LeakSanitizer no reporta nada fuera de Docker en este"
+	@echo "entorno). Para la variante con ThreadSanitizer, usar 'make"
+	@echo "casos-enunciado-tsan' (fuera de Docker, TSan falla bajo su emulacion)."
+
+# Caso 7 con ThreadSanitizer. Aparte de casos-enunciado a proposito: correr
+# esto dentro del contenedor Docker en hosts ARM64 falla por un problema
+# conocido de TSan bajo emulacion (no es un bug del codigo).
+casos-enunciado-tsan: all
+	@echo "=== Caso 7 (Estres) -- ThreadSanitizer (correr fuera de Docker) ==="
+	$(CC) $(CFLAGS) -fsanitize=thread -I$(INC_DIR) -o /tmp/lottery_caso7_tsan $(SRCS)
+	bash scripts/casos_enunciado/caso7_estres.sh /tmp/lottery_caso7_tsan "TSan"
 
 clean:
 	rm -rf $(BUILD_DIR) build-asan build-tsan $(TARGET)
