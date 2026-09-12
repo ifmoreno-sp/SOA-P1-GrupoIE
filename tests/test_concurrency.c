@@ -257,6 +257,63 @@ static void test_select_winner_weighted_distribution(void)
           "tarea con 90% de los boletos gana aproximadamente 90% de los sorteos (4000 semillas)");
 }
 
+/* M9: el sorteo debe usar effective_tickets, no tickets. Ambas tareas
+ * arrancan con los mismos tickets base (50/50); si el sorteo todavia usara
+ * tickets, la distribucion de ganadores seria pareja. Se infla a mano
+ * effective_tickets de la tarea 1 a 9x la de la tarea 0 (simulando
+ * compensacion activa) y se verifica que la distribucion sigue esa
+ * proporcion, igual que test_select_winner_weighted_distribution pero
+ * disociando tickets de effective_tickets. */
+static void test_select_winner_uses_effective_tickets(void)
+{
+    Task single[1];
+    task_init(&single[0], 1, 10, 5);
+    single[0].effective_tickets = 25; /* tickets base != effective */
+
+    Sync sync;
+    check(sync_init(&sync) == 0, "sync_init exitoso (select_winner, effective_tickets)");
+    Rng rng;
+    check(rng_init(&rng, 1) == 0, "rng_init exitoso (select_winner, effective_tickets)");
+
+    Selection sel = sync_select_winner(&sync, single, 1, &rng);
+    check(sel.active_tickets == 25,
+          "active_tickets refleja effective_tickets, no tickets base");
+    check(sel.winning_ticket >= 1 && sel.winning_ticket <= 25,
+          "winning_ticket cae en [1, effective_tickets]");
+
+    task_destroy(&single[0]);
+    sync_destroy(&sync);
+
+    enum { TRIALS = 4000 };
+    int wins_task1 = 0;
+    for (uint32_t seed = 1; seed <= TRIALS; seed++) {
+        Task tasks[2];
+        task_init(&tasks[0], 1, 50, 5);
+        task_init(&tasks[1], 2, 50, 5); /* mismos tickets base que la tarea 0 */
+        tasks[0].effective_tickets = 10;
+        tasks[1].effective_tickets = 90; /* compensando: 9x mas boletos efectivos */
+
+        Sync sync2;
+        sync_init(&sync2);
+        Rng rng2;
+        rng_init(&rng2, seed);
+
+        Selection sel2 = sync_select_winner(&sync2, tasks, 2, &rng2);
+        if (sel2.index == 1) {
+            wins_task1++;
+        }
+
+        task_destroy(&tasks[0]);
+        task_destroy(&tasks[1]);
+        sync_destroy(&sync2);
+    }
+
+    double ratio2 = (double)wins_task1 / TRIALS;
+    check(ratio2 > 0.85 && ratio2 < 0.95,
+          "con tickets base iguales pero effective_tickets 10/90, la tarea con mas "
+          "effective_tickets gana ~90% (el sorteo ignora tickets base)");
+}
+
 int main(void)
 {
     printf("Pruebas de integracion del nucleo de concurrencia:\n");
@@ -268,6 +325,7 @@ int main(void)
     test_select_winner_no_ready_tasks();
     test_select_winner_skips_non_ready();
     test_select_winner_weighted_distribution();
+    test_select_winner_uses_effective_tickets();
 
     printf("\nResultado: %d pasaron, %d fallaron.\n", passed, failed);
     return failed == 0 ? 0 : 1;
