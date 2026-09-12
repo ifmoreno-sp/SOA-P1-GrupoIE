@@ -109,6 +109,59 @@ expect_failure "argumento desconocido" \
     "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 --seed 2026 \
     --log /dev/null --turbo
 
+BAD_DIR="/no/existe/de/verdad"
+
+echo "Validacion de archivos de salida:"
+expect_failure "--log con ruta invalida (directorio inexistente)" \
+    "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 --seed 2026 \
+    --log "$BAD_DIR/events.csv"
+expect_failure "--summary con ruta invalida (directorio inexistente)" \
+    "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 --seed 2026 \
+    --log /dev/null --summary "$BAD_DIR/summary.csv"
+
+echo "Sin ejecucion parcial:"
+
+# Corre el binario con --log apuntando a un archivo temporal recien
+# eliminado; si el comando falla como se espera, --log NUNCA debio
+# crearse (la validacion de CSV/CLI ocurre antes de abrir cualquier
+# archivo de salida).
+TMP_LOG="$(mktemp -u)"
+expect_no_log_created() {
+    local desc="$1"
+    shift
+    rm -f "$TMP_LOG"
+    if "$@" --log "$TMP_LOG" >"$OUT" 2>&1; then
+        echo "  FALLO- $desc (se esperaba error, salio con codigo 0)"
+        failed=$((failed + 1))
+    elif [ -e "$TMP_LOG" ]; then
+        echo "  FALLO- $desc (se creo '$TMP_LOG' pese al error)"
+        failed=$((failed + 1))
+    else
+        echo "  ok   - $desc"
+        passed=$((passed + 1))
+    fi
+}
+expect_no_log_created "CSV invalido no crea --log" \
+    "$BIN" --input "$FIXTURES/invalid_zero_tickets.csv" --mode quantum --quantum 10 --seed 2026
+expect_no_log_created "CLI invalida no crea --log" \
+    "$BIN" --input "$FIXTURES/valid_5.csv" --mode rr --quantum 10 --seed 2026
+rm -f "$TMP_LOG"
+
+# --summary invalido debe fallar ANTES de correr el scheduler: el log de
+# eventos (que si tiene una ruta valida) debe quedar vacio, no con la
+# corrida completa desperdiciada.
+TMP_LOG2="$(mktemp)"
+"$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 --seed 2026 \
+    --log "$TMP_LOG2" --summary "$BAD_DIR/summary.csv" >"$OUT" 2>&1
+if [ -s "$TMP_LOG2" ]; then
+    echo "  FALLO- --summary invalido: el log de eventos se escribio de todas formas (ejecucion desperdiciada)"
+    failed=$((failed + 1))
+else
+    echo "  ok   - --summary invalido corta antes de escribir el log de eventos"
+    passed=$((passed + 1))
+fi
+rm -f "$TMP_LOG2"
+
 echo
 echo "Resultado: $passed pasaron, $failed fallaron."
 [ "$failed" -eq 0 ]

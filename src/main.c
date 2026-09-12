@@ -11,15 +11,15 @@
 #include "sync.h"
 #include "task.h"
 
-/* Abre `path` en modo escritura o termina el programa con un mensaje
- * claro y codigo de salida distinto de cero. `label` identifica cual
- * archivo fallo (--log o --summary) en el mensaje de error. */
-static FILE *open_output_or_exit(const char *path, const char *label)
+/* Abre `path` en modo escritura. Si falla, imprime un mensaje claro
+ * identificando cual bandera fallo (--log o --summary) y retorna NULL —
+ * el llamador decide como limpiar antes de terminar (no se llama exit()
+ * aqui para no saltarse la liberacion de lo que ya se haya reservado). */
+static FILE *open_output(const char *path, const char *label)
 {
     FILE *file = fopen(path, "w");
     if (file == NULL) {
         fprintf(stderr, "error: no se pudo abrir %s '%s' para escritura\n", label, path);
-        exit(EXIT_FAILURE);
     }
     return file;
 }
@@ -70,6 +70,27 @@ int main(int argc, char *argv[])
            task_count, (unsigned long long)total_tickets,
            (unsigned long long)total_work);
 
+    /* Ambos archivos de salida se abren ANTES de correr el scheduler (no
+     * solo --log): si --summary apunta a una ruta invalida, el programa
+     * debe fallar aqui, no despues de haber ejecutado toda la simulacion
+     * para nada. Cualquier fallo libera lo que ya se haya reservado antes
+     * de retornar -- no se usa exit() para no saltarse esa limpieza. */
+    FILE *log_file = open_output(opts.log_path, "--log");
+    if (log_file == NULL) {
+        free(tasks);
+        return EXIT_FAILURE;
+    }
+
+    FILE *summary_file = NULL;
+    if (opts.summary_path != NULL) {
+        summary_file = open_output(opts.summary_path, "--summary");
+        if (summary_file == NULL) {
+            fclose(log_file);
+            free(tasks);
+            return EXIT_FAILURE;
+        }
+    }
+
     Rng rng;
     /* cli_parse ya garantiza opts.seed != 0. */
     assert(rng_init(&rng, opts.seed) == 0);
@@ -77,7 +98,6 @@ int main(int argc, char *argv[])
     Sync sync;
     assert(sync_init(&sync) == 0);
 
-    FILE *log_file = open_output_or_exit(opts.log_path, "--log");
     results_write_log_header(log_file);
 
     TaskStats stats[CSV_PARSER_MAX_TASKS] = {0};
@@ -97,8 +117,7 @@ int main(int argc, char *argv[])
     results_write_stopped_rows(log_file, &results, tasks, task_count, total_dispatches);
     fclose(log_file);
 
-    if (opts.summary_path != NULL) {
-        FILE *summary_file = open_output_or_exit(opts.summary_path, "--summary");
+    if (summary_file != NULL) {
         results_write_summary_header(summary_file);
         for (size_t i = 0; i < task_count; i++) {
             results_write_summary_row(summary_file, &tasks[i], &stats[i],
