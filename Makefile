@@ -36,7 +36,11 @@ $(BUILD_DIR):
 # Corre las pruebas de validación de entrada (CSV y argumentos) y las
 # pruebas unitarias de los módulos que ya las tienen (rng, workload, el
 # núcleo de concurrencia, el scheduler y los modos de ejecución).
+# tests/test_input_validation.sh es la validación extra de ingeniería
+# (Milestone 1/8); scripts/casos_enunciado/caso1_validacion.sh son los 4
+# escenarios mínimos del Caso 1 del enunciado -- no se solapan.
 test: all test-rng test-workload test-concurrency test-scheduler test-modes test-results
+	bash tests/test_input_validation.sh
 	bash scripts/casos_enunciado/caso1_validacion.sh
 
 test-rng: $(BUILD_DIR)/test_rng
@@ -77,8 +81,9 @@ $(BUILD_DIR)/test_modes: tests/test_execution_modes.c src/task.c src/sync.c src/
 # Reconstruye y corre toda la suite (mismos targets que test) con
 # AddressSanitizer + UndefinedBehaviorSanitizer. Usa su propio BUILD_DIR
 # para no mezclar objetos con los de una compilacion normal; TARGET no
-# cambia, asi que scripts/casos_enunciado/caso1_validacion.sh (que invoca ./lottery_scheduler
-# a secas) sigue funcionando sin modificaciones.
+# cambia, asi que tests/test_input_validation.sh y
+# scripts/casos_enunciado/caso1_validacion.sh (que invocan ./lottery_scheduler
+# a secas) siguen funcionando sin modificaciones.
 test-results: $(BUILD_DIR)/test_results
 	./$(BUILD_DIR)/test_results
 
