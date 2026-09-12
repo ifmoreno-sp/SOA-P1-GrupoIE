@@ -107,8 +107,8 @@ tsan:
 #
 # El Caso 7 corre aqui solo con ASan+UBSan. La variante con ThreadSanitizer
 # vive aparte, en `casos-enunciado-tsan`, porque TSan falla bajo la
-# emulacion x86_64 de Docker en hosts ARM64 (ver entorno_desarrollo.md del
-# repo de conocimiento) -- se corre fuera de Docker, directo en el host.
+# emulacion x86_64 de Docker en hosts ARM64 -- se corre fuera de Docker,
+# directo en el host.
 casos-enunciado: all
 	@echo "=== Caso 1 (Validacion) ==="
 	bash scripts/casos_enunciado/caso1_validacion.sh

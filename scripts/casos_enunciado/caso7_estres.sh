@@ -5,9 +5,8 @@
 #
 # Este script NO construye el binario -- recibe la ruta de un binario ya
 # instrumentado como argumento, para poder correrse contra distintas
-# variantes de sanitizer (ver entorno_desarrollo.md del repo de
-# conocimiento sobre por que ASan+LSan necesita Docker/Linux y TSan
-# necesita correr fuera de Docker en este entorno).
+# variantes de sanitizer (ASan+LSan necesita Docker/Linux y TSan necesita
+# correr fuera de Docker en este entorno).
 #
 # Uso: scripts/casos_enunciado/caso7_estres.sh <ruta-al-binario> [etiqueta]
 set -uo pipefail

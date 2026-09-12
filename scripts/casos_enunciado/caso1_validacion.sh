@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Caso 1 del enunciado (Validacion): "4 tareas; tickets cero; id duplicado;
 # archivo incompleto. Rechazo con codigo no cero y sin crear ejecucion
-# parcial." Parsea CSV y valida CLI (src/csv_parser.c, src/cli.c, desde
-# Milestone 1); tambien corre como parte de `make test`.
+# parcial." Parsea CSV y valida CLI (src/csv_parser.c, src/cli.c); tambien
+# corre como parte de `make test`.
 #
 # Rutas relativas ("tests/fixtures", el binario "./lottery_scheduler"):
 # este script asume que se invoca desde la raiz del repo, sin importar
