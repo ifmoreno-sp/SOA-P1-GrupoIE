@@ -10,6 +10,7 @@
 #include "scheduler.h"
 #include "sync.h"
 #include "task.h"
+#include "yield_config.h"
 
 /* Abre `path` en modo escritura. Si falla, imprime un mensaje claro
  * identificando cual bandera fallo (--log o --summary) y retorna NULL —
@@ -43,6 +44,18 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
+    if (opts.yield_config_path != NULL) {
+        char yield_errbuf[YIELD_CONFIG_ERRBUF_SIZE];
+        if (yield_config_load(opts.yield_config_path, tasks, task_count, yield_errbuf) != 0) {
+            fprintf(stderr, "error: %s\n", yield_errbuf);
+            for (size_t i = 0; i < task_count; i++) {
+                task_destroy(&tasks[i]);
+            }
+            free(tasks);
+            return EXIT_FAILURE;
+        }
+    }
+
     uint64_t total_tickets = 0;
     uint64_t total_work = 0;
     for (size_t i = 0; i < task_count; i++) {
@@ -61,6 +74,8 @@ int main(int argc, char *argv[])
     printf("log: %s\n", opts.log_path);
     printf("summary: %s\n",
            opts.summary_path != NULL ? opts.summary_path : "(no solicitado)");
+    printf("yield-config: %s\n",
+           opts.yield_config_path != NULL ? opts.yield_config_path : "(no solicitado)");
     if (opts.has_max_dispatches) {
         printf("max-dispatches: %llu\n",
                (unsigned long long)opts.max_dispatches);

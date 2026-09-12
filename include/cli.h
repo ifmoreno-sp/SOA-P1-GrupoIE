@@ -14,6 +14,8 @@ typedef struct {
     const char *input_path;
     const char *log_path;
     const char *summary_path;  /* NULL si no se especifico: es opcional. */
+    const char *yield_config_path; /* NULL si no se especifico (extension M9):
+                                     * es opcional. */
     SchedulerMode mode;
     uint32_t quantum;          /* Valido solo con MODE_QUANTUM. */
     uint32_t slice_percent;    /* Valido solo con MODE_COOPERATIVE, 1..100. */
@@ -25,7 +27,11 @@ typedef struct {
 /* Parsea los argumentos de linea de comandos segun la interfaz del enunciado:
  *   --input <ruta> --mode <cooperative|quantum> --seed <n != 0> --log <ruta>
  *   [--quantum <Q> | --slice-percent <P>] [--summary <ruta>]
- *   [--max-dispatches <N>]
+ *   [--max-dispatches <N>] [--yield-config <csv>]
+ *
+ * --yield-config es exclusivo del experimento de la extension M9
+ * (compensation tickets): un CSV opcional con las tareas que deben ceder
+ * temprano. Ausente por defecto, sin efecto en el comportamiento base.
  *
  * --quantum es obligatorio en modo quantum y --slice-percent en modo
  * cooperative; pasar el que no corresponde al modo es un error.

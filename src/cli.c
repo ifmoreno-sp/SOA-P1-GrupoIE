@@ -53,7 +53,8 @@ const char *cli_usage(void)
     return "uso: lottery_scheduler --input <csv> --mode <cooperative|quantum>\n"
            "                       (--quantum <Q> | --slice-percent <P>)\n"
            "                       --seed <n != 0> --log <csv>\n"
-           "                       [--summary <csv>] [--max-dispatches <N>]";
+           "                       [--summary <csv>] [--max-dispatches <N>]\n"
+           "                       [--yield-config <csv>]";
 }
 
 /* Parsea los argumentos de la línea de comandos. */
@@ -78,6 +79,8 @@ int cli_parse(int argc, char *argv[], CliOptions *opts,
             target = &opts->log_path;
         } else if (strcmp(arg, "--summary") == 0) {
             target = &opts->summary_path;
+        } else if (strcmp(arg, "--yield-config") == 0) {
+            target = &opts->yield_config_path;
         } else if (strcmp(arg, "--mode") == 0) {
             target = &mode_str;
         } else if (strcmp(arg, "--quantum") == 0) {

@@ -78,6 +78,29 @@ expect_failure "archivo inexistente" \
     "$BIN" --input "$FIXTURES/no_existe.csv" --mode quantum --quantum 10 \
     --seed 2026 --log /dev/null
 
+echo "Validacion de --yield-config (extension M9):"
+expect_success "archivo de yield-config valido" \
+    "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 \
+    --seed 2026 --log /dev/null --yield-config "$FIXTURES/yield_valid.csv"
+expect_failure "encabezado invalido" \
+    "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 \
+    --seed 2026 --log /dev/null --yield-config "$FIXTURES/yield_invalid_header.csv"
+expect_failure "yield_percent fuera de rango (100)" \
+    "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 \
+    --seed 2026 --log /dev/null --yield-config "$FIXTURES/yield_invalid_out_of_range.csv"
+expect_failure "task_id que no existe en el CSV de entrada" \
+    "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 \
+    --seed 2026 --log /dev/null --yield-config "$FIXTURES/yield_invalid_unknown_id.csv"
+expect_failure "task_id repetido dentro del yield-config" \
+    "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 \
+    --seed 2026 --log /dev/null --yield-config "$FIXTURES/yield_invalid_duplicate.csv"
+expect_failure "valor faltante entre comas (1,)" \
+    "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 \
+    --seed 2026 --log /dev/null --yield-config "$FIXTURES/yield_invalid_missing_value.csv"
+expect_failure "archivo de yield-config inexistente" \
+    "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 \
+    --seed 2026 --log /dev/null --yield-config "$FIXTURES/no_existe.csv"
+
 echo "Validacion de la CLI:"
 expect_failure "sin --input" \
     "$BIN" --mode quantum --quantum 10 --seed 2026 --log /dev/null
@@ -145,6 +168,9 @@ expect_no_log_created "CSV invalido no crea --log" \
     "$BIN" --input "$FIXTURES/invalid_zero_tickets.csv" --mode quantum --quantum 10 --seed 2026
 expect_no_log_created "CLI invalida no crea --log" \
     "$BIN" --input "$FIXTURES/valid_5.csv" --mode rr --quantum 10 --seed 2026
+expect_no_log_created "yield-config invalido no crea --log" \
+    "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 --seed 2026 \
+    --yield-config "$FIXTURES/yield_invalid_unknown_id.csv"
 rm -f "$TMP_LOG"
 
 # --summary invalido debe fallar ANTES de correr el scheduler: el log de
