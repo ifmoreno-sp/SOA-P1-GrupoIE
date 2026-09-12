@@ -25,9 +25,12 @@ typedef struct {
                                        * TASK_READY (nada que despachar). */
     uint32_t winning_ticket;         /* boleto sorteado; solo valido si
                                        * index < task_count. */
-    uint64_t active_tickets;         /* suma de boletos de las TASK_READY
-                                       * en el momento del sorteo; solo
-                                       * valido si index < task_count. */
+    uint64_t active_tickets;         /* suma de effective_tickets (M9) de
+                                       * las TASK_READY en el momento del
+                                       * sorteo -- coincide con la suma de
+                                       * tickets base salvo que alguna este
+                                       * compensando una cesion temprana;
+                                       * solo valido si index < task_count. */
     uint32_t completed_units_before; /* tasks[index].completed_units en el
                                        * momento del sorteo; solo valido si
                                        * index < task_count. Util para que
@@ -64,11 +67,12 @@ void sync_destroy(Sync *sync);
  * debe tener el mutex tomado al invocarla. */
 void sync_dispatch(Sync *sync, Task *tasks, size_t task_count, size_t winner_index);
 
-/* Decide la siguiente ganadora de la loteria: suma los boletos de las
- * tareas TASK_READY, sortea un boleto en [1, active_tickets] con `rng`, y
- * localiza a su propietaria por suma acumulada. Es la unica funcion que
- * recorre tasks[] para decidir un ganador, y lo hace bajo sync->mutex, en
- * vez de que el llamador (scheduler.c) lea task.state directamente.
+/* Decide la siguiente ganadora de la loteria: suma effective_tickets (M9)
+ * de las tareas TASK_READY -- igual a tickets salvo compensacion activa --,
+ * sortea un boleto en [1, active_tickets] con `rng`, y localiza a su
+ * propietaria por suma acumulada. Es la unica funcion que recorre tasks[]
+ * para decidir un ganador, y lo hace bajo sync->mutex, en vez de que el
+ * llamador (scheduler.c) lea task.state directamente.
  *
  * Precondicion: rng inicializado (rng_init); ninguna tarea esta en
  * TASK_RUNNING (el llamador ya proceso el evento anterior via
