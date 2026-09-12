@@ -17,7 +17,7 @@ SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 # Ninguno de estos targets produce un archivo con su propio nombre.
-.PHONY: all test test-rng test-workload test-concurrency test-scheduler test-modes test-results asan tsan clean
+.PHONY: all test test-rng test-workload test-concurrency test-scheduler test-modes test-results asan tsan casos-enunciado casos-enunciado-tsan clean
 
 all: $(TARGET)
 
@@ -93,6 +93,53 @@ asan:
 # targets separados con su propio BUILD_DIR cada uno.
 tsan:
 	$(MAKE) BUILD_DIR=build-tsan CFLAGS="$(CFLAGS) -fsanitize=thread" test
+
+# Corre los 7 casos minimos del enunciado (ver docs/casos_enunciado.md
+# para la tabla completa comando/esperado/obtenido/conclusion). Separado a
+# proposito de `test`: esto es la evidencia de cumplimiento del enunciado,
+# no el ciclo rapido de desarrollo -- Casos 3/4 corren 30 semillas cada
+# uno y el Caso 7 reconstruye dos binarios con sanitizers.
+#
+# Casos 1/5/6 no tienen script propio: ya estan cubiertos por `make test`
+# (test_input_validation.sh, test-scheduler, test-modes respectivamente) y
+# solo se referencian aqui para no duplicar pruebas.
+#
+# El Caso 7 corre aqui solo con ASan+UBSan (funciona igual en macOS nativo
+# y dentro de Docker). La variante con ThreadSanitizer vive aparte, en
+# `casos-enunciado-tsan`, porque TSan falla bajo la emulacion de Docker en
+# Apple Silicon (ver entorno_desarrollo.md del repo de conocimiento) -- se
+# corre nativo, no dentro del contenedor.
+casos-enunciado: all
+	@echo "=== Caso 1 (Validacion): cubierto por 'make test' -> tests/test_input_validation.sh ==="
+	@echo
+	@echo "=== Caso 2 (Reproducibilidad) ==="
+	bash scripts/casos_enunciado/caso2_reproducibilidad.sh
+	@echo
+	@echo "=== Caso 3 (Igualdad) ==="
+	python3 scripts/casos_enunciado/caso3_igualdad.py
+	@echo
+	@echo "=== Caso 4 (Proporcionalidad) ==="
+	python3 scripts/casos_enunciado/caso4_proporcionalidad.py
+	@echo
+	@echo "=== Caso 5 (Terminacion): cubierto por 'make test-scheduler' -> tests/test_scheduler.c ==="
+	@echo "=== Caso 6 (Modos): cubierto por 'make test-modes' -> tests/test_execution_modes.c ==="
+	@echo
+	@echo "=== Caso 7 (Estres) -- ASan+UBSan ==="
+	$(CC) $(CFLAGS) -fsanitize=address,undefined -I$(INC_DIR) -o /tmp/lottery_caso7_asan $(SRCS)
+	bash scripts/casos_enunciado/caso7_estres.sh /tmp/lottery_caso7_asan "ASan+UBSan"
+	@echo
+	@echo "Nota: para verificar fugas de memoria de forma confiable (LeakSanitizer"
+	@echo "no funciona en macOS), correr esto mismo dentro de Docker. Para la"
+	@echo "variante con ThreadSanitizer, usar 'make casos-enunciado-tsan' (nativo,"
+	@echo "no dentro de Docker)."
+
+# Caso 7 con ThreadSanitizer. Aparte de casos-enunciado a proposito: correr
+# esto dentro del contenedor Docker en Apple Silicon falla por un problema
+# conocido de TSan bajo emulacion (no es un bug del codigo).
+casos-enunciado-tsan: all
+	@echo "=== Caso 7 (Estres) -- ThreadSanitizer (correr nativo, no en Docker) ==="
+	$(CC) $(CFLAGS) -fsanitize=thread -I$(INC_DIR) -o /tmp/lottery_caso7_tsan $(SRCS)
+	bash scripts/casos_enunciado/caso7_estres.sh /tmp/lottery_caso7_tsan "TSan"
 
 clean:
 	rm -rf $(BUILD_DIR) build-asan build-tsan $(TARGET)
