@@ -61,7 +61,10 @@ uint32_t cooperative_slice_size(uint32_t work_units, uint32_t slice_percent);
  * temprana forzada, y task->debt/effective_tickets se actualizan segun
  * corresponda -- ver decide_run_units_and_update_compensation en worker.c.
  * Con has_yield == 0 (el caso por defecto) el ciclo es identico al de
- * antes de M9.
+ * antes de M9. Con has_yield activo pero task->compensate == 0
+ * (--disable-compensation, el "control" del experimento A/B), la tarea
+ * cede la misma fraccion en cada activacion para siempre, sin que
+ * debt/effective_tickets se muevan jamas de su valor base.
  *
  * No usa sleep/usleep. No llama funciones pthread_mutex_ ni pthread_cond_
  * de forma directa: todo pasa por las funciones de sync.h. */

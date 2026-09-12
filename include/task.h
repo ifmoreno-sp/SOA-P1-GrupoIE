@@ -40,6 +40,14 @@ typedef struct {
     uint32_t debt;
     int has_yield;
     uint32_t yield_percent; /* valido solo si has_yield != 0, en [1, 99] */
+    int compensate; /* 1 por defecto (task_init); solo importa si has_yield
+                      * != 0. En 0 (task_disable_compensation, el "control"
+                      * del experimento A/B de la extension): la tarea cede
+                      * la misma fraccion en CADA activacion, para siempre,
+                      * sin que debt/effective_tickets se muevan jamas de
+                      * su valor base -- aisla el efecto de ceder temprano
+                      * del efecto de compensar, para poder medirlos por
+                      * separado. */
 
     /* El hilo trabajador de ESTA tarea espera aqui hasta que su estado pase
      * a TASK_RUNNING (ver sync.h). Protegida por el mutex de Sync, no por un
@@ -65,6 +73,16 @@ void task_init(Task *task, uint32_t id, uint32_t tickets, uint32_t work_units);
  * worker.c en la primera activacion de esta tarea.
  * Precondicion: yield_percent en [1, 99]. */
 void task_set_yield_config(Task *task, uint32_t yield_percent);
+
+/* Desactiva la compensacion de tickets para esta tarea, dejando activa
+ * solo la cesion temprana forzada: el "control" del experimento A/B de la
+ * extension (--disable-compensation), que aisla el efecto de ceder
+ * temprano del efecto de compensar con mas tickets. Sin esta llamada
+ * (compensate == 1, el valor de task_init), el comportamiento es el
+ * "tratamiento" ya implementado en worker.c.
+ * Precondicion: task_set_yield_config ya se llamo sobre esta tarea (no
+ * tiene efecto sobre una tarea con has_yield == 0). */
+void task_disable_compensation(Task *task);
 
 /* Libera cond_worker (pthread_cond_destroy).
  * Precondicion: task fue inicializado con task_init y su hilo trabajador ya

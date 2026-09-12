@@ -53,13 +53,20 @@ static uint32_t decide_slice_units(const WorkerArgs *wargs)
  *     Si si cede temprano: debt = block - unidades_corridas,
  *     effective_tickets = ceil(tickets_base * block / unidades_corridas)
  *     (ver worker.h para la justificacion de la aritmetica entera).
- *   - Con deuda pendiente (debt > 0): corre el bloque completo (no vuelve a
- *     ceder temprano mientras compensa) y descuenta lo corrido de la
- *     deuda. Si la deuda llega a 0, effective_tickets vuelve a
- *     tickets_base -- la proxima vez que gane, si sigue sin deuda, vuelve
- *     a ceder temprano: el ciclo se repite durante toda la corrida, tal
- *     como describe el escenario de la extension (un "servidor" que cede
- *     por I/O una y otra vez). */
+ *   - Con deuda pendiente (debt > 0) Y compensando (task->compensate != 0):
+ *     corre el bloque completo (no vuelve a ceder temprano mientras
+ *     compensa) y descuenta lo corrido de la deuda. Si la deuda llega a 0,
+ *     effective_tickets vuelve a tickets_base -- la proxima vez que gane,
+ *     si sigue sin deuda, vuelve a ceder temprano: el ciclo se repite
+ *     durante toda la corrida, tal como describe el escenario de la
+ *     extension (un "servidor" que cede por I/O una y otra vez).
+ *
+ * task->compensate == 0 (task_disable_compensation, el "control" del
+ * experimento A/B): debt nunca se fija y effective_tickets nunca se toca,
+ * asi que la rama de "con deuda pendiente" de arriba nunca se activa -- la
+ * tarea cede la MISMA fraccion en cada activacion, para siempre, sin
+ * ningun tickets_compensados. Aisla el efecto de ceder temprano (por si
+ * solo) del efecto de la compensacion. */
 static uint32_t decide_run_units_and_update_compensation(WorkerArgs *wargs)
 {
     Task *task = wargs->task;
@@ -69,7 +76,7 @@ static uint32_t decide_run_units_and_update_compensation(WorkerArgs *wargs)
         return block;
     }
 
-    if (task->debt > 0) {
+    if (task->compensate && task->debt > 0) {
         if (block >= task->debt) {
             task->debt = 0;
             task->effective_tickets = task->tickets;
@@ -86,10 +93,12 @@ static uint32_t decide_run_units_and_update_compensation(WorkerArgs *wargs)
     }
     uint32_t run_now = (uint32_t)raw;
 
-    task->debt = block - run_now;
-    uint64_t compensated = ((uint64_t)task->tickets * block + run_now - 1) / run_now;
-    assert(compensated <= UINT32_MAX);
-    task->effective_tickets = (uint32_t)compensated;
+    if (task->compensate) {
+        task->debt = block - run_now;
+        uint64_t compensated = ((uint64_t)task->tickets * block + run_now - 1) / run_now;
+        assert(compensated <= UINT32_MAX);
+        task->effective_tickets = (uint32_t)compensated;
+    }
     return run_now;
 }
 

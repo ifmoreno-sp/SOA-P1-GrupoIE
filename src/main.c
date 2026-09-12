@@ -54,6 +54,13 @@ int main(int argc, char *argv[])
             free(tasks);
             return EXIT_FAILURE;
         }
+        if (opts.disable_compensation) {
+            for (size_t i = 0; i < task_count; i++) {
+                if (tasks[i].has_yield) {
+                    task_disable_compensation(&tasks[i]);
+                }
+            }
+        }
     }
 
     uint64_t total_tickets = 0;
@@ -76,6 +83,9 @@ int main(int argc, char *argv[])
            opts.summary_path != NULL ? opts.summary_path : "(no solicitado)");
     printf("yield-config: %s\n",
            opts.yield_config_path != NULL ? opts.yield_config_path : "(no solicitado)");
+    if (opts.disable_compensation) {
+        printf("compensacion: desactivada (control del experimento A/B)\n");
+    }
     if (opts.has_max_dispatches) {
         printf("max-dispatches: %llu\n",
                (unsigned long long)opts.max_dispatches);

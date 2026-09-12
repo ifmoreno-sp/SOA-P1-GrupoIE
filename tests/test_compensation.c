@@ -224,6 +224,57 @@ static void test_yield_skipped_when_block_too_small(void)
     sync_destroy(&sync);
 }
 
+/* El "control" del experimento A/B (task_disable_compensation): la tarea
+ * sigue cediendo la misma fraccion en cada activacion (misma cesion
+ * temprana que test_quantum_yield_and_compensation_cycle), pero
+ * debt/effective_tickets nunca se mueven de su valor inicial -- nunca
+ * entra a la rama de "pagar deuda con el bloque completo". Mismos
+ * parametros que esa prueba (Q=10, tickets=20, yield_percent=40) para que
+ * la comparacion entre ambas sea directa: la diferencia observable es
+ * exclusivamente el efecto de compensar, no de ceder. */
+static void test_disable_compensation_never_inflates_tickets(void)
+{
+    Task task;
+    task_init(&task, 1, 20, 40);
+    task_set_yield_config(&task, 40);
+    task_disable_compensation(&task);
+
+    Sync sync;
+    check(sync_init(&sync) == 0, "sync_init exitoso (control, sin compensar)");
+
+    pthread_t thread;
+    WorkerArgs args = {.task = &task, .sync = &sync, .mode = MODE_QUANTUM, .quantum = 10};
+    check(worker_pool_start(&thread, &args, 1) == 0,
+          "worker_pool_start crea el hilo (control, sin compensar)");
+
+    sync_dispatch(&sync, &task, 1, 0);
+    sync_wait_for_event(&sync);
+    check(task.completed_units == 4, "1a activacion: cede 4/10 (f=0.4), igual que con compensacion");
+    check(task.debt == 0, "debt nunca se fija con compensate == 0");
+    check(task.effective_tickets == 20, "effective_tickets se mantiene en la base");
+
+    sync_dispatch(&sync, &task, 1, 0);
+    sync_wait_for_event(&sync);
+    check(task.completed_units == 8,
+          "2a activacion: vuelve a ceder 4 mas (sin la fase de 'pagar deuda con el bloque completo')");
+    check(task.debt == 0, "debt sigue en 0");
+    check(task.effective_tickets == 20, "effective_tickets sigue en la base");
+
+    sync_dispatch(&sync, &task, 1, 0);
+    sync_wait_for_event(&sync);
+    check(task.completed_units == 12, "3a activacion: el patron se repite indefinidamente");
+    check(task.effective_tickets == 20, "effective_tickets nunca se infla, a diferencia del tratamiento");
+
+    run_fake_scheduler(&sync, &task, 1);
+    join_with_timeout(&thread, 1);
+
+    check(task.state == TASK_FINISHED, "la tarea termina en TASK_FINISHED pese a ceder siempre");
+    check(task.completed_units == task.work_units, "completed_units == work_units al terminar");
+
+    task_destroy(&task);
+    sync_destroy(&sync);
+}
+
 int main(void)
 {
     printf("Pruebas de la extension M9 (compensation tickets):\n");
@@ -231,6 +282,7 @@ int main(void)
     test_quantum_yield_and_compensation_cycle();
     test_cooperative_yield_and_compensation_cycle();
     test_yield_skipped_when_block_too_small();
+    test_disable_compensation_never_inflates_tickets();
 
     printf("\nResultado: %d pasaron, %d fallaron.\n", passed, failed);
     return failed == 0 ? 0 : 1;

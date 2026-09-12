@@ -19,6 +19,7 @@ void task_init(Task *task, uint32_t id, uint32_t tickets, uint32_t work_units)
     task->debt = 0;
     task->has_yield = 0;
     task->yield_percent = 0;
+    task->compensate = 1;
 
     int rc = pthread_cond_init(&task->cond_worker, NULL);
     assert(rc == 0);
@@ -30,6 +31,11 @@ void task_set_yield_config(Task *task, uint32_t yield_percent)
     assert(yield_percent >= 1 && yield_percent <= 99);
     task->has_yield = 1;
     task->yield_percent = yield_percent;
+}
+
+void task_disable_compensation(Task *task)
+{
+    task->compensate = 0;
 }
 
 /* Libera los recursos de sincronizacion de la tarea. */

@@ -16,6 +16,9 @@ typedef struct {
     const char *summary_path;  /* NULL si no se especifico: es opcional. */
     const char *yield_config_path; /* NULL si no se especifico (extension M9):
                                      * es opcional. */
+    int disable_compensation; /* extension M9: el "control" del experimento
+                                * A/B -- solo valido junto a yield_config_path
+                                * != NULL (cli_parse lo exige). */
     SchedulerMode mode;
     uint32_t quantum;          /* Valido solo con MODE_QUANTUM. */
     uint32_t slice_percent;    /* Valido solo con MODE_COOPERATIVE, 1..100. */
@@ -27,11 +30,16 @@ typedef struct {
 /* Parsea los argumentos de linea de comandos segun la interfaz del enunciado:
  *   --input <ruta> --mode <cooperative|quantum> --seed <n != 0> --log <ruta>
  *   [--quantum <Q> | --slice-percent <P>] [--summary <ruta>]
- *   [--max-dispatches <N>] [--yield-config <csv>]
+ *   [--max-dispatches <N>] [--yield-config <csv>] [--disable-compensation]
  *
  * --yield-config es exclusivo del experimento de la extension M9
  * (compensation tickets): un CSV opcional con las tareas que deben ceder
  * temprano. Ausente por defecto, sin efecto en el comportamiento base.
+ *
+ * --disable-compensation es el "control" de ese mismo experimento: deja
+ * la cesion temprana activa pero desactiva la compensacion de tickets.
+ * Bandera booleana (sin valor); es un error pasarla sin --yield-config,
+ * porque sin tareas configuradas para ceder no tendria ningun efecto.
  *
  * --quantum es obligatorio en modo quantum y --slice-percent en modo
  * cooperative; pasar el que no corresponde al modo es un error.

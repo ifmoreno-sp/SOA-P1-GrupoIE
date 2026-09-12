@@ -100,6 +100,12 @@ expect_failure "valor faltante entre comas (1,)" \
 expect_failure "archivo de yield-config inexistente" \
     "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 \
     --seed 2026 --log /dev/null --yield-config "$FIXTURES/no_existe.csv"
+expect_failure "--disable-compensation sin --yield-config" \
+    "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 \
+    --seed 2026 --log /dev/null --disable-compensation
+expect_success "--disable-compensation junto con --yield-config" \
+    "$BIN" --input "$FIXTURES/valid_5.csv" --mode quantum --quantum 10 \
+    --seed 2026 --log /dev/null --yield-config "$FIXTURES/yield_valid.csv" --disable-compensation
 
 echo "Validacion de la CLI:"
 expect_failure "sin --input" \
