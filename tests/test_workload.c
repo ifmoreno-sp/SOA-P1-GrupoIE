@@ -2,7 +2,7 @@
  * de ejercitar esta pieza por la interfaz de linea de comandos todavia (no
  * existe scheduler hasta milestones posteriores), asi que se prueba
  * llamando directamente a la funcion. Sin framework: assert()-based, con un
- * contador de pasadas/fallos al estilo de tests/test_input_validation.sh. */
+ * contador de pasadas/fallos al estilo de scripts/casos_enunciado/caso1_validacion.sh. */
 
 #include <stdio.h>
 

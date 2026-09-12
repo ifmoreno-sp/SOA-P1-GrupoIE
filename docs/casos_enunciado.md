@@ -4,10 +4,13 @@ Tabla de los 7 casos mínimos exigidos por el enunciado ("Pruebas Mínimas
 de Funcionamiento"), con comando, resultado esperado, resultado obtenido y
 conclusión — corresponde al punto 3 de "Evidencia y Análisis Requeridos".
 
-Los Casos 2, 3, 4 y 7 tienen script propio en `scripts/casos_enunciado/`
-(no estaban cubiertos por ninguna prueba existente). Los Casos 1, 5 y 6 ya
-estaban cubiertos por pruebas de desarrollador de milestones anteriores —
-se referencian aquí en vez de duplicarlos.
+Los 7 casos son invocables desde `scripts/casos_enunciado/`. Los Casos 2,
+3, 4 y 7 tienen su prueba completa ahí (no estaban cubiertos por nada
+existente). Los Casos 1, 5 y 6 ya estaban cubiertos por pruebas de
+desarrollador de milestones anteriores (`tests/`) — en vez de duplicar esa
+lógica, `scripts/casos_enunciado/` tiene un punto de entrada delgado para
+cada uno (`caso1_validacion.sh`, `caso5_terminacion.sh`,
+`caso6_modos.sh`) que solo invoca la prueba real.
 
 Para reproducir todo: `make casos-enunciado` (Casos 2/3/4/7 con
 ASan+UBSan) y `make casos-enunciado-tsan` (Caso 7 con ThreadSanitizer,
@@ -18,7 +21,7 @@ nativo — ver nota de entorno al final).
 **Configuración del enunciado:** 4 tareas; tickets cero; id duplicado;
 archivo incompleto.
 
-**Comando:** `make test` (corre `tests/test_input_validation.sh`).
+**Comando:** `make test` (corre `scripts/casos_enunciado/caso1_validacion.sh`).
 
 **Resultado esperado:** rechazo con código no cero y sin crear ejecución
 parcial.
@@ -119,7 +122,8 @@ dejar correr hasta que todas terminen produce `observed_share` uniforme
 **Configuración del enunciado:** trabajos distintos; tareas terminan en
 momentos diferentes.
 
-**Comando:** `make test-scheduler` (`tests/test_scheduler.c`,
+**Comando:** `bash scripts/casos_enunciado/caso5_terminacion.sh` (invoca
+`make test-scheduler` → `tests/test_scheduler.c`,
 `test_multiple_tasks_all_finish`).
 
 **Resultado esperado:** una tarea finalizada no vuelve a ganar; suma de
@@ -138,8 +142,9 @@ hilos se verifica con timeout vía `alarm()` (sin deadlock).
 **Configuración del enunciado:** misma entrada y semilla en cooperativo y
 quantum discreto.
 
-**Comando:** `make test-modes`
-(`tests/test_execution_modes.c`, `test_modes_produce_same_result`).
+**Comando:** `bash scripts/casos_enunciado/caso6_modos.sh` (invoca
+`make test-modes` → `tests/test_execution_modes.c`,
+`test_modes_produce_same_result`).
 
 **Resultado esperado:** mismo trabajo final y π; comparación de despachos
 y costo de coordinación.

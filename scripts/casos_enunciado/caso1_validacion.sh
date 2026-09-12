@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
-# Pruebas del Milestone 1: parseo de CSV, validaciones de entrada y CLI.
-# Cubren el Caso 1 del enunciado (rechazo con codigo distinto de cero y sin
-# ejecucion parcial). Los 7 casos completos llegan con el Milestone 10.
+# Caso 1 del enunciado (Validacion): "4 tareas; tickets cero; id duplicado;
+# archivo incompleto. Rechazo con codigo no cero y sin crear ejecucion
+# parcial." Parsea CSV y valida CLI (src/csv_parser.c, src/cli.c, desde
+# Milestone 1); tambien corre como parte de `make test`.
+#
+# Rutas relativas ("tests/fixtures", el binario "./lottery_scheduler"):
+# este script asume que se invoca desde la raiz del repo, sin importar
+# donde viva el archivo -- ver como lo invocan `make test` y
+# `make casos-enunciado`.
 set -uo pipefail
 
 BIN="./lottery_scheduler"

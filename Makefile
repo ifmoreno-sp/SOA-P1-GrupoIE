@@ -37,7 +37,7 @@ $(BUILD_DIR):
 # pruebas unitarias de los módulos que ya las tienen (rng, workload, el
 # núcleo de concurrencia, el scheduler y los modos de ejecución).
 test: all test-rng test-workload test-concurrency test-scheduler test-modes test-results
-	bash tests/test_input_validation.sh
+	bash scripts/casos_enunciado/caso1_validacion.sh
 
 test-rng: $(BUILD_DIR)/test_rng
 	./$(BUILD_DIR)/test_rng
@@ -77,7 +77,7 @@ $(BUILD_DIR)/test_modes: tests/test_execution_modes.c src/task.c src/sync.c src/
 # Reconstruye y corre toda la suite (mismos targets que test) con
 # AddressSanitizer + UndefinedBehaviorSanitizer. Usa su propio BUILD_DIR
 # para no mezclar objetos con los de una compilacion normal; TARGET no
-# cambia, asi que tests/test_input_validation.sh (que invoca ./lottery_scheduler
+# cambia, asi que scripts/casos_enunciado/caso1_validacion.sh (que invoca ./lottery_scheduler
 # a secas) sigue funcionando sin modificaciones.
 test-results: $(BUILD_DIR)/test_results
 	./$(BUILD_DIR)/test_results
@@ -100,9 +100,11 @@ tsan:
 # no el ciclo rapido de desarrollo -- Casos 3/4 corren 30 semillas cada
 # uno y el Caso 7 reconstruye dos binarios con sanitizers.
 #
-# Casos 1/5/6 no tienen script propio: ya estan cubiertos por `make test`
-# (test_input_validation.sh, test-scheduler, test-modes respectivamente) y
-# solo se referencian aqui para no duplicar pruebas.
+# Casos 1/5/6 no duplican su prueba real (que vive en tests/, junto a
+# pruebas relacionadas de su mismo modulo) -- scripts/casos_enunciado/
+# tiene un punto de entrada delgado para cada uno (caso1_validacion.sh,
+# caso5_terminacion.sh, caso6_modos.sh) que solo invoca esa prueba, para
+# que los 7 casos sean invocables desde un mismo lugar.
 #
 # El Caso 7 corre aqui solo con ASan+UBSan (funciona igual en macOS nativo
 # y dentro de Docker). La variante con ThreadSanitizer vive aparte, en
@@ -110,7 +112,8 @@ tsan:
 # Apple Silicon (ver entorno_desarrollo.md del repo de conocimiento) -- se
 # corre nativo, no dentro del contenedor.
 casos-enunciado: all
-	@echo "=== Caso 1 (Validacion): cubierto por 'make test' -> tests/test_input_validation.sh ==="
+	@echo "=== Caso 1 (Validacion) ==="
+	bash scripts/casos_enunciado/caso1_validacion.sh
 	@echo
 	@echo "=== Caso 2 (Reproducibilidad) ==="
 	bash scripts/casos_enunciado/caso2_reproducibilidad.sh
@@ -121,8 +124,11 @@ casos-enunciado: all
 	@echo "=== Caso 4 (Proporcionalidad) ==="
 	python3 scripts/casos_enunciado/caso4_proporcionalidad.py
 	@echo
-	@echo "=== Caso 5 (Terminacion): cubierto por 'make test-scheduler' -> tests/test_scheduler.c ==="
-	@echo "=== Caso 6 (Modos): cubierto por 'make test-modes' -> tests/test_execution_modes.c ==="
+	@echo "=== Caso 5 (Terminacion) ==="
+	bash scripts/casos_enunciado/caso5_terminacion.sh
+	@echo
+	@echo "=== Caso 6 (Modos) ==="
+	bash scripts/casos_enunciado/caso6_modos.sh
 	@echo
 	@echo "=== Caso 7 (Estres) -- ASan+UBSan ==="
 	$(CC) $(CFLAGS) -fsanitize=address,undefined -I$(INC_DIR) -o /tmp/lottery_caso7_asan $(SRCS)

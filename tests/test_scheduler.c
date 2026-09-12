@@ -1,7 +1,7 @@
 /* Pruebas del bucle del scheduler: task.c + sync.c + worker.c +
  * workload.c + rng.c + scheduler.c trabajando juntos con hilos reales, a
  * traves de la interfaz publica de scheduler_run directamente (sin pasar
- * por la CLI, que se prueba aparte en tests/test_input_validation.sh). Sin
+ * por la CLI, que se prueba aparte en scripts/casos_enunciado/caso1_validacion.sh). Sin
  * framework: assert()-based con contador de pasadas/fallos, al estilo de
  * tests/test_concurrency.c.
  *
