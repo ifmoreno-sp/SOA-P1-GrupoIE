@@ -26,6 +26,21 @@ typedef struct {
     double pi_approx;
     uint64_t pi_index;
 
+    /* Extension M9 (compensation tickets). `tickets` de arriba es siempre el
+     * valor base; el sorteo (sync.c) usa `effective_tickets` en su lugar,
+     * que solo diverge de `tickets` mientras esta tarea esta compensando una
+     * cesion temprana (ver worker.h). `debt` son las unidades que le faltan
+     * para terminar de "pagar" esa cesion antes de volver a `tickets`.
+     * `has_yield`/`yield_percent` son la configuracion opcional (activada
+     * solo via --yield-config, ver cli.h) que hace que esta tarea ceda
+     * temprano cada vez que gana y no tiene deuda pendiente; en el
+     * comportamiento base (sin --yield-config) has_yield es 0 y estos tres
+     * campos nunca se usan, dejando el sorteo identico a antes de M9. */
+    uint32_t effective_tickets;
+    uint32_t debt;
+    int has_yield;
+    uint32_t yield_percent; /* valido solo si has_yield != 0, en [1, 99] */
+
     /* El hilo trabajador de ESTA tarea espera aqui hasta que su estado pase
      * a TASK_RUNNING (ver sync.h). Protegida por el mutex de Sync, no por un
      * lock propio. */
@@ -40,6 +55,16 @@ typedef struct {
  * aplica al tamano de este proyecto (<=25 tareas).
  * Precondicion: task != NULL. */
 void task_init(Task *task, uint32_t id, uint32_t tickets, uint32_t work_units);
+
+/* Activa la cesion temprana forzada (extension M9) para esta tarea: cuando
+ * gane el sorteo sin deuda pendiente, cedera tras correr solo
+ * yield_percent% de su bloque decidido, en vez de agotarlo. Deshabilitada
+ * por defecto (task_init deja has_yield en 0); esta funcion es la unica
+ * forma de activarla, y solo la usa main.c para las tareas listadas en
+ * --yield-config. No toca tickets ni effective_tickets: eso lo actualiza
+ * worker.c en la primera activacion de esta tarea.
+ * Precondicion: yield_percent en [1, 99]. */
+void task_set_yield_config(Task *task, uint32_t yield_percent);
 
 /* Libera cond_worker (pthread_cond_destroy).
  * Precondicion: task fue inicializado con task_init y su hilo trabajador ya
