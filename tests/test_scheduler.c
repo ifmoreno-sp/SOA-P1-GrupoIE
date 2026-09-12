@@ -7,9 +7,10 @@
  *
  * El invariante de exclusion y el sorteo ponderado ya tienen sus propias
  * pruebas en tests/test_concurrency.c (sync_dispatch, sync_select_winner);
- * aqui se prueba el bucle completo: terminacion normal, que ninguna tarea
- * gane dos veces, y que --max-dispatches corte la observacion sin dejar
- * hilos bloqueados. */
+ * aqui se prueba el bucle completo: caso simple de una tarea y que
+ * --max-dispatches corte la observacion sin dejar hilos bloqueados. La
+ * prueba de que ninguna tarea gane dos veces y todas terminen (Caso 5 del
+ * enunciado) vive en scripts/casos_enunciado/caso5_terminacion.c. */
 
 #include <signal.h>
 #include <stdio.h>
@@ -117,55 +118,6 @@ static void test_single_task(void)
     sync_destroy(&sync);
 }
 
-/* Varias tareas con trabajo distinto: todas deben terminar, y ninguna debe
- * ganar mas de un despacho (con el placeholder temporal del worker, cada despacho agota
- * el trabajo restante de su ganadora de una sola vez). */
-static void test_multiple_tasks_all_finish(void)
-{
-    enum { N = 5 };
-    Task tasks[N];
-    const uint32_t tickets[N] = {10, 20, 30, 40, 50};
-    const uint32_t work[N] = {3, 7, 1, 9, 4};
-    for (int i = 0; i < N; i++) {
-        task_init(&tasks[i], (uint32_t)(i + 1), tickets[i], work[i]);
-    }
-
-    Sync sync;
-    check(sync_init(&sync) == 0, "sync_init exitoso (scheduler, 5 tareas)");
-    Rng rng;
-    check(rng_init(&rng, 777) == 0, "rng_init exitoso (scheduler, 5 tareas)");
-
-    EventLog log = {.count = 0};
-    uint64_t dispatches = scheduler_run_with_timeout(&sync, tasks, N, &rng, 0,
-                                                       record_event, &log);
-
-    check(dispatches == N,
-          "N tareas (placeholder temporal del worker) toman exactamente N despachos");
-    check(log.count == N, "el observer recibe exactamente N eventos");
-
-    int seen[N + 1] = {0}; /* indexado por id (1..N) */
-    int duplicate = 0;
-    for (size_t i = 0; i < log.count; i++) {
-        uint32_t id = log.events[i].winner_id;
-        if (id >= 1 && id <= N) {
-            if (seen[id]) {
-                duplicate = 1;
-            }
-            seen[id] = 1;
-        }
-    }
-    check(!duplicate,
-          "ninguna tarea gana mas de un despacho (una FINISHED no vuelve a competir)");
-
-    for (int i = 0; i < N; i++) {
-        check(tasks[i].state == TASK_FINISHED, "cada tarea termina en TASK_FINISHED");
-        check(tasks[i].completed_units == tasks[i].work_units,
-              "completed_units == work_units al terminar");
-        task_destroy(&tasks[i]);
-    }
-    sync_destroy(&sync);
-}
-
 /* --max-dispatches: el bucle debe detenerse tras exactamente el limite
  * pedido, sin alterar el estado de las tareas no despachadas, y sin dejar
  * ningun worker bloqueado (scheduler_run_with_timeout lo verifica). */
@@ -212,7 +164,6 @@ int main(void)
 {
     printf("Pruebas del bucle del scheduler:\n");
     test_single_task();
-    test_multiple_tasks_all_finish();
     test_max_dispatches_stops_and_joins_cleanly();
 
     printf("\nResultado: %d pasaron, %d fallaron.\n", passed, failed);

@@ -3,14 +3,13 @@
 # en momentos diferentes. Una tarea finalizada no vuelve a ganar; suma de
 # trabajo correcta; joins completos."
 #
-# La prueba en si vive en tests/test_scheduler.c (test_multiple_tasks_all_finish),
-# junto a las demas pruebas del bucle del scheduler -- no se duplica aqui
-# porque comparten el mismo protocolo y el mismo binario de prueba. Este
+# La prueba minima vive en scripts/casos_enunciado/caso5_terminacion.c
+# (extraida de tests/test_scheduler.c, que se quedo con las otras dos
+# pruebas de ingenieria de M5 que no corresponden a este escenario). Este
 # script es solo el punto de entrada desde scripts/casos_enunciado/, para
 # tener los 7 casos invocables desde un mismo lugar.
 set -uo pipefail
 
-echo "Caso 5 -- Terminacion"
-echo "(prueba real en tests/test_scheduler.c: test_multiple_tasks_all_finish)"
+echo "(prueba real en scripts/casos_enunciado/caso5_terminacion.c)"
 echo
-make test-scheduler
+make caso5-terminacion

@@ -5,11 +5,12 @@
  * modo de la logica de sorteo, igual que test_concurrency.c hace con el
  * nucleo de concurrencia.
  *
- * Tres niveles de prueba:
+ * Dos niveles de prueba (el tercero, la equivalencia funcional entre
+ * modos que pide el Caso 6 del enunciado, vive en
+ * scripts/casos_enunciado/caso6_modos.c):
  *   1. cooperative_slice_size directo, sin hilos: la aritmetica del ceil.
- *   2. El comportamiento observable de cada modo con hilos reales, mas la
- *      equivalencia funcional entre ambos (caso de prueba 6 del enunciado).
- *   3. Casos borde de quantum (Q mayor/igual/menor al trabajo) y la
+ *   2. El comportamiento observable de cada modo con hilos reales, mas
+ *      casos borde de quantum (Q mayor/igual/menor al trabajo) y la
  *      verificacion directa de que una tarea vuelve a TASK_READY a mitad
  *      de camino, no solo inferida del dispatch_count final. */
 
@@ -151,41 +152,6 @@ static void test_cooperative_mode_dispatches(void)
     task_destroy(&large);
 }
 
-/* Caso de prueba 6 del enunciado: misma entrada en ambos modos debe dar el
- * mismo trabajo final y el mismo pi, aunque difiera el numero de despachos
- * (el costo de coordinacion). El resultado de pi se compara bit a bit: la
- * serie es determinista y las mismas N unidades en distinto orden de corte
- * producen exactamente la misma secuencia de operaciones. */
-static void test_modes_produce_same_result(void)
-{
-    Task coop;
-    Task quant;
-    task_init(&coop, 1, 10, 60);
-    task_init(&quant, 1, 10, 60);
-
-    uint32_t coop_dispatches = run_one_task(&coop, MODE_COOPERATIVE, 0, 10);
-    uint32_t quant_dispatches = run_one_task(&quant, MODE_QUANTUM, 25, 0);
-
-    check(coop.completed_units == quant.completed_units,
-          "ambos modos completan el mismo trabajo total");
-    check(coop.pi_approx == quant.pi_approx,
-          "ambos modos producen el mismo pi final, bit a bit");
-    check(coop.pi_index == quant.pi_index,
-          "ambos modos avanzan la serie hasta el mismo indice");
-    check(coop.state == TASK_FINISHED && quant.state == TASK_FINISHED,
-          "ambos modos terminan la tarea");
-    /* 60 unidades: cooperativo al 10% da bloques de 6 (10 activaciones);
-     * quantum Q=25 da 25+25+10 (3 activaciones). Mismo resultado, distinto
-     * costo de coordinacion. */
-    check(coop_dispatches == 10, "cooperativo 10% sobre 60 unidades: 10 activaciones");
-    check(quant_dispatches == 3, "quantum Q=25 sobre 60 unidades: 3 activaciones");
-    check(coop_dispatches != quant_dispatches,
-          "el overhead de despachos si difiere entre modos");
-
-    task_destroy(&coop);
-    task_destroy(&quant);
-}
-
 /* Varias tareas compitiendo, para confirmar que el corte por modo tambien
  * funciona cuando el scheduler alterna entre tareas distintas. */
 static void test_multiple_tasks_quantum(void)
@@ -312,7 +278,6 @@ int main(void)
     test_cooperative_slice_size();
     test_quantum_mode_dispatches();
     test_cooperative_mode_dispatches();
-    test_modes_produce_same_result();
     test_multiple_tasks_quantum();
     test_quantum_larger_than_work();
     test_quantum_exact_multiple();
