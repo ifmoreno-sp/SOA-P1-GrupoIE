@@ -150,10 +150,16 @@ def main() -> int:
     parser.add_argument("--mode", choices=["quantum", "cooperative"], default="quantum")
     parser.add_argument("--quantum", type=int, default=50)
     parser.add_argument("--slice-percent", type=int, default=10)
-    parser.add_argument("--max-dispatches", type=int, default=20,
-                         help="ventana de observacion truncada (default: 20)")
-    parser.add_argument("--seeds", type=int, default=30,
-                         help="cuantas semillas correr, numeradas 1..N (default: 30)")
+    parser.add_argument("--max-dispatches", type=int, default=40,
+                         help="ventana de observacion truncada (default: 40; "
+                              "40 << ~60 despachos totales esperados para que "
+                              "la tarea de mas tickets termine, ver "
+                              "milestone9_notas_tecnicas.md en el repo de Knowledge)")
+    parser.add_argument("--seeds", type=int, default=100,
+                         help="cuantas semillas correr, numeradas 1..N (default: 100; "
+                              "calculado con n=(1.96*desv_std/margen)^2 a partir de un "
+                              "piloto de 30 semillas para un margen de +/-10 puntos "
+                              "porcentuales en la metrica de mejora)")
     parser.add_argument("--out", default=str(REPO_ROOT / "results/compensation_ab.csv"),
                          help="CSV con el detalle por semilla (default: results/compensation_ab.csv)")
     args = parser.parse_args()
