@@ -96,7 +96,7 @@ Selection sync_select_winner(Sync *sync, Task *tasks, size_t task_count, Rng *rn
     for (size_t i = 0; i < task_count; i++) {
         assert(tasks[i].state != TASK_RUNNING);
         if (tasks[i].state == TASK_READY) {
-            active_tickets += tasks[i].tickets;
+            active_tickets += tasks[i].effective_tickets;
         }
     }
 
@@ -107,9 +107,15 @@ Selection sync_select_winner(Sync *sync, Task *tasks, size_t task_count, Rng *rn
         return sel;
     }
 
-    /* active_tickets es la suma de un subconjunto de los tickets validados
-     * por csv_parser_load, que ya garantiza que la suma TOTAL cabe en
-     * [1, UINT32_MAX]; un subconjunto no puede excederla. */
+    /* Sin compensacion activa (M9 desactivada, el caso base), esta es la
+     * suma de un subconjunto de los tickets validados por csv_parser_load,
+     * que ya garantiza que la suma TOTAL cabe en [1, UINT32_MAX]; un
+     * subconjunto no puede excederla. Con compensacion activa,
+     * effective_tickets puede superar tickets para la tarea que compensa,
+     * pero solo mientras tiene deuda pendiente (task_set_yield_config exige
+     * yield_percent <= 99, y worker.c limita la inflacion resultante) --
+     * este assert queda como red de seguridad para escenarios extremos del
+     * experimento, no una garantia matematica independiente. */
     assert(active_tickets <= UINT32_MAX);
     uint32_t ticket = rng_draw_ticket(rng, (uint32_t)active_tickets);
 
@@ -119,7 +125,7 @@ Selection sync_select_winner(Sync *sync, Task *tasks, size_t task_count, Rng *rn
         if (tasks[i].state != TASK_READY) {
             continue;
         }
-        accum += tasks[i].tickets;
+        accum += tasks[i].effective_tickets;
         if (ticket <= accum) {
             winner = i;
             break;

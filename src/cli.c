@@ -53,7 +53,8 @@ const char *cli_usage(void)
     return "uso: lottery_scheduler --input <csv> --mode <cooperative|quantum>\n"
            "                       (--quantum <Q> | --slice-percent <P>)\n"
            "                       --seed <n != 0> --log <csv>\n"
-           "                       [--summary <csv>] [--max-dispatches <N>]";
+           "                       [--summary <csv>] [--max-dispatches <N>]\n"
+           "                       [--yield-config <csv>] [--disable-compensation]";
 }
 
 /* Parsea los argumentos de la línea de comandos. */
@@ -70,6 +71,16 @@ int cli_parse(int argc, char *argv[], CliOptions *opts,
 
     for (int i = 1; i < argc; i++) {
         const char *arg = argv[i];
+
+        /* Unica bandera booleana (sin valor) de la interfaz: no pasa por
+         * el patron generico de "target" + next_value de abajo, que
+         * siempre consume un valor. Idempotente, asi que no hace falta
+         * detectar duplicados como con las demas banderas. */
+        if (strcmp(arg, "--disable-compensation") == 0) {
+            opts->disable_compensation = 1;
+            continue;
+        }
+
         const char **target = NULL;
 
         if (strcmp(arg, "--input") == 0) {
@@ -78,6 +89,8 @@ int cli_parse(int argc, char *argv[], CliOptions *opts,
             target = &opts->log_path;
         } else if (strcmp(arg, "--summary") == 0) {
             target = &opts->summary_path;
+        } else if (strcmp(arg, "--yield-config") == 0) {
+            target = &opts->yield_config_path;
         } else if (strcmp(arg, "--mode") == 0) {
             target = &mode_str;
         } else if (strcmp(arg, "--quantum") == 0) {
@@ -180,6 +193,12 @@ int cli_parse(int argc, char *argv[], CliOptions *opts,
             return -1;
         }
         opts->has_max_dispatches = 1;
+    }
+
+    if (opts->disable_compensation && opts->yield_config_path == NULL) {
+        snprintf(errbuf, CLI_ERRBUF_SIZE,
+                 "--disable-compensation requiere --yield-config (si no, no tiene efecto)");
+        return -1;
     }
 
     return 0;

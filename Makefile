@@ -17,7 +17,7 @@ SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 # Ninguno de estos targets produce un archivo con su propio nombre.
-.PHONY: all test test-rng test-workload test-concurrency test-scheduler test-modes test-results caso5-terminacion caso6-modos asan tsan casos-enunciado casos-enunciado-tsan clean
+.PHONY: all test test-rng test-workload test-concurrency test-scheduler test-modes test-results test-compensation caso5-terminacion caso6-modos asan tsan casos-enunciado casos-enunciado-tsan clean
 
 all: $(TARGET)
 
@@ -39,7 +39,7 @@ $(BUILD_DIR):
 # tests/test_input_validation.sh es la validación extra de ingeniería
 # (Milestone 1/8); scripts/casos_enunciado/caso1_validacion.sh son los 4
 # escenarios mínimos del Caso 1 del enunciado -- no se solapan.
-test: all test-rng test-workload test-concurrency test-scheduler test-modes test-results
+test: all test-rng test-workload test-concurrency test-scheduler test-modes test-results test-compensation
 	bash tests/test_input_validation.sh
 	bash scripts/casos_enunciado/caso1_validacion.sh
 
@@ -106,6 +106,19 @@ test-results: $(BUILD_DIR)/test_results
 $(BUILD_DIR)/test_results: tests/test_results.c src/task.c src/workload.c src/results.c include/task.h include/workload.h include/results.h include/scheduler.h include/cli.h include/sync.h include/rng.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ tests/test_results.c src/task.c src/workload.c src/results.c
 
+test-compensation: $(BUILD_DIR)/test_compensation
+	./$(BUILD_DIR)/test_compensation
+
+# Mismas dependencias de src/rng.c/include/cli.h que test-concurrency, por
+# la misma razon (sync.c llama al RNG; worker.h expone SchedulerMode).
+$(BUILD_DIR)/test_compensation: tests/test_compensation.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c include/task.h include/sync.h include/worker.h include/workload.h include/rng.h include/cli.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ tests/test_compensation.c src/task.c src/sync.c src/worker.c src/workload.c src/rng.c
+
+# Reconstruye y corre toda la suite (mismos targets que test) con
+# AddressSanitizer + UndefinedBehaviorSanitizer. Usa su propio BUILD_DIR
+# para no mezclar objetos con los de una compilacion normal; TARGET no
+# cambia, asi que tests/test_input_validation.sh (que invoca ./lottery_scheduler
+# a secas) sigue funcionando sin modificaciones.
 asan:
 	$(MAKE) BUILD_DIR=build-asan CFLAGS="$(CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer" test
 
