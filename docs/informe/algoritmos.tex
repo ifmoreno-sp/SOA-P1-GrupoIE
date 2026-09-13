@@ -33,7 +33,8 @@ vive en \texttt{src/sync.c}, \texttt{src/scheduler.c} y
 
 El sesgo del módulo en la línea 6 (cuando \text{activos} no divide exacto el
 rango de \texttt{xorshift32}) se acepta y documenta en vez de corregirse con
-\textit{rejection sampling}: para los tamaños de \text{activos} reales del
+\textit{rejection sampling}~\cite{Lemire2019}: para los tamaños de
+\text{activos} reales del
 proyecto (decenas a unos pocos miles) el sesgo relativo es del orden de
 $10^{-8}$, siete órdenes de magnitud por debajo de la tolerancia del
 experimento de proporcionalidad ($\leq 0.02$).
@@ -118,7 +119,7 @@ El caso base (sin \texttt{--yield-config}) es indistinguible del planificador
 sin extensión: la función retorna el bloque sin tocar ningún campo de
 compensación. Con \texttt{--disable-compensation} activo (control del
 experimento A/B, Sección~\ref{sec:resultados-extension}), $t.\text{compensa}
-= 0$ y la rama de "deuda pendiente" nunca se activa: la tarea cede la misma
+= 0$ y la rama de ``deuda pendiente'' nunca se activa: la tarea cede la misma
 fracción en cada activación, indefinidamente, sin inflar
 \texttt{effective\_tickets}.
 

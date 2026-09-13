@@ -44,23 +44,30 @@ seguro.
 
 Se usa un esquema de \textbf{una \texttt{cond\_worker} por tarea más una
 \texttt{cond\_scheduler} compartida}, en vez de una única condvar global con
-un predicado de "turno" señalada por \textit{broadcast}. La alternativa
+un predicado de ``turno'' señalada por \textit{broadcast}. La alternativa
 descartada despertaría innecesariamente a las $N-1$ tareas que no ganaron
-cada despacho (\textit{thundering herd}); el esquema elegido señala siempre
-de forma dirigida (\texttt{pthread\_cond\_signal}, nunca
-\texttt{pthread\_cond\_broadcast}) a un único hilo por evento.
+cada despacho --- el problema de \textit{thundering herd}: muchos hilos
+despertados por un mismo evento cuando a lo sumo uno puede hacer trabajo
+útil, desperdiciando ciclos de CPU y generando contención de mutex
+innecesaria en los demás~\cite{MolloyLever2000}. El esquema elegido lo
+evita señalando siempre de forma dirigida
+(\texttt{pthread\_cond\_signal}, nunca \texttt{pthread\_cond\_broadcast}) a
+un único hilo por evento. La Tabla~\ref{tab:condvars} resume las dos
+condvars del protocolo: quién espera en cada una, su predicado exacto, y
+quién la señala.
 
-\begin{table}[htbp]
+\begin{table*}[htbp]
 \caption{Condvars, predicados y quién señala}
 \label{tab:condvars}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{p{1.7cm}p{1.6cm}p{1.9cm}p{2.0cm}}
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{p{3.0cm}p{2.6cm}p{4.5cm}p{7.0cm}}
 \toprule
 \textbf{Condvar} & \textbf{Espera} & \textbf{Predicado} & \textbf{Señala} \\
 \midrule
-\texttt{task[i]}.\linebreak\texttt{cond\_worker} &
+\texttt{task[i].cond\_worker} &
   Worker $i$ &
-  \texttt{state==RUNNING} \linebreak \texttt{|| stop\_requested} &
+  \texttt{state==RUNNING || stop\_requested} &
   El planificador, al elegir a $i$ como ganador (o \texttt{sync\_request\_stop} al cortar) \\
 \midrule
 \texttt{cond\_scheduler} &
@@ -69,13 +76,14 @@ de forma dirigida (\texttt{pthread\_cond\_signal}, nunca
   El worker en ejecución, al ceder o terminar \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}
 
 Ambos predicados se evalúan dentro de un \texttt{while}, nunca un
 \texttt{if}, por dos razones independientes: POSIX permite explícitamente
 que \texttt{pthread\_cond\_wait} retorne sin que nadie haya señalado la
-condición (un despertar sin causa aparente, conocido en la literatura como
-\textit{spurious wakeup}); y el caso en que varios hilos comparten una
+condición~\cite{IEEE1003.1-2024} --- un despertar sin causa aparente,
+conocido en la literatura de \textit{pthreads} como \textit{spurious
+wakeup}~\cite{Butenhof1997}; y el caso en que varios hilos comparten una
 condvar y el que despierta encuentra que la condición ya no aplica. \texttt{pthread\_cond\_wait} suelta el mutex y duerme el hilo de
 forma atómica, y vuelve a tomar el mutex antes de retornar --- evita la
 condición de \textit{señal perdida} que ocurriría si soltar el mutex y
@@ -84,8 +92,10 @@ dormirse fueran dos pasos separados.
 \subsection{Protocolo de despacho}
 \label{sec:protocolo}
 
-La Fig.~\ref{fig:protocolo} muestra el ciclo completo de un despacho. El
-planificador (hilo principal) ejecuta tres pasos en secuencia:
+La Fig.~\ref{fig:protocolo} muestra el ciclo completo de un despacho (el
+pseudocódigo correspondiente es el Algoritmo~\ref{alg:bucle},
+Sección~\ref{sec:algoritmos}). El planificador (hilo principal) ejecuta
+tres pasos en secuencia:
 \texttt{sync\_select\_winner} (sortea la ganadora entre las tareas
 \texttt{READY}, ponderando por \texttt{effective\_tickets}),
 \texttt{sync\_dispatch} (marca a la ganadora \texttt{RUNNING} y la señala), y

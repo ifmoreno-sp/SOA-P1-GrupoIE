@@ -63,7 +63,7 @@ resolvieron al implementar:
   bloque cooperativo recortado por lo que falta) --- sin ramas de código por
   modo dentro de la extensión.
 \item \textbf{El campo \texttt{tickets} de \texttt{Task} no se renombra.}
-  Ya cumple el rol de "boletos base"; se agregó \texttt{effective\_tickets}
+  Ya cumple el rol de ``boletos base''; se agregó \texttt{effective\_tickets}
   como campo nuevo (igual a \texttt{tickets} salvo compensación activa) en
   vez de tocar los sitios que ya construían o leían \texttt{Task.tickets}
   desde el modelo de datos original.
@@ -109,7 +109,7 @@ aquí.
 
 Lo que se preserva del mecanismo descrito por el paper: la inflación de
 boletos es proporcional a la fracción \emph{no} consumida del bloque, es
-\textbf{temporal} (dura exactamente lo que tarda en "pagarse" el bloque
+\textbf{temporal} (dura exactamente lo que tarda en ``pagarse'' el bloque
 cedido en unidades de trabajo, ni una activación más), y se activa por la
 cesión temprana misma, no por una política externa que decida cuándo
 compensar. Lo que se simplifica frente al paper: no hay un cliente real
@@ -152,7 +152,8 @@ trabajo asignado --- de forma que ninguna tarea termine dentro de la
 ventana observada (misma razón que en el experimento de proporcionalidad,
 Sección~\ref{sec:resultados}, pero aplicada al límite opuesto: aquí
 interesa una ventana corta para que la cesión temprana sea observable con
-pocos ciclos de cesión/compensación).
+pocos ciclos de cesión/compensación). La Tabla~\ref{tab:extension-ab}
+resume el resultado.
 
 \begin{table}[htbp]
 \caption{Experimento A/B de compensation tickets: error absoluto de
@@ -190,7 +191,7 @@ verificado a continuación.
 \textbf{La magnitud depende de la ventana, no solo su signo.} Antes de
 fijar $\text{--max-dispatches}=40$ como definitivo, se repitió el mismo
 experimento (100 semillas cada vez, para que la comparación entre ventanas
-sea justa) variando únicamente el tamaño de ventana:
+sea justa) variando únicamente el tamaño de ventana (Tabla~\ref{tab:extension-sensibilidad}):
 
 \begin{table}[htbp]
 \caption{Sensibilidad de la mejora relativa al tamaño de ventana (100
@@ -212,7 +213,7 @@ ventana (despachos) & mejora media & desv. std. \\
 \end{table}
 
 Dos hallazgos no anticipados al elegir la ventana de 40 únicamente por el
-criterio de "quedar bien por debajo del techo de $\sim 60$ despachos":
+criterio de ``quedar bien por debajo del techo de $\sim 60$ despachos'':
 con ventanas muy cortas (15 despachos) la métrica de mejora se vuelve
 matemáticamente inestable, porque su denominador ($error_A$, el error del
 control) puede caer cerca de cero por pura casualidad en semillas
