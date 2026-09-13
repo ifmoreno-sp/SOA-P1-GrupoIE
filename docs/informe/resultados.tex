@@ -151,8 +151,89 @@ tareas que dejan de competir en momentos distintos.
 \subsection{Experimento de la extensión (compensation tickets)}
 \label{sec:resultados-extension}
 
-\pendiente{Resultados estadísticos finales del experimento A/B de la
-extensión (media, intervalo de confianza, análisis de sensibilidad a la
-ventana observada) --- en elaboración en paralelo. El diseño del
-experimento, la hipótesis y el mecanismo de la extensión se describen en la
-Sección~\ref{sec:extension}.}
+El diseño experimental (control \texttt{--disable-compensation} vs.
+tratamiento con compensación activa) y las hipótesis H0/H1 se describen en
+la Sección~\ref{sec:extension}. Se ejecutó
+\texttt{scripts/experiment\_compensation\_ab.py} con sus parámetros por
+defecto: tarea 3 de \texttt{tests/fixtures/valid\_5.csv} (30 de 150
+boletos, \textit{target\_share}$=0.20$), modo \textit{quantum} ($Q=50$),
+$\text{yield\_percent}=25\%$, ventana de $\text{--max-dispatches}=40$ sobre
+100 semillas ($1,\ldots,100$). La ventana se eligió deliberadamente por
+debajo de $\sim 60$ despachos --- el número esperado de despachos para que
+la tarea con más boletos agote su trabajo asignado --- de forma que
+ninguna tarea termine dentro de la ventana observada (misma razón que en el
+experimento de proporcionalidad, Sección anterior, pero aplicada al límite
+opuesto: aquí interesa una ventana corta para que la cesión temprana sea
+observable con pocos ciclos de cesión/compensación).
+
+\begin{table}[htbp]
+\caption{Experimento A/B de compensation tickets: error absoluto de
+\texttt{observed\_share} de la tarea 3 respecto a su target (0.20), control
+vs. tratamiento, 100 semillas}
+\label{tab:extension-ab}
+\centering
+\begin{tabular}{lcc}
+\toprule
+ & media & desv. std. \\
+\midrule
+error$_A$ (sin compensar, control) & 0.1395 & 0.0224 \\
+error$_B$ (compensando, tratamiento) & 0.0502 & 0.0343 \\
+mejora relativa $(error_A - error_B)/error_A$ & +63.67\% & 26.64\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La mejora relativa promedio sobre las 100 semillas es de $+63.67\%$. Tratando
+las 100 semillas como muestras independientes, el error estándar de la
+media es $\text{SEM} = 0.2664/\sqrt{100} = 0.0266$, y el intervalo de
+confianza al 95\% es
+\[
+  0.6367 \pm 1.96 \times 0.0266 = [58.4\%,\ 68.9\%].
+\]
+Como este intervalo no incluye 0 (ni valores cercanos), se rechaza H0: la
+compensación tiene un efecto medible y sustancial sobre
+\texttt{observed\_share} de una tarea que cede tempranamente, consistente
+con H1.
+
+\paragraph{La magnitud depende de la ventana, no solo su signo.} Antes de
+fijar $\text{--max-dispatches}=40$ como definitivo, se repitió el mismo
+experimento (100 semillas cada vez, para que la comparación entre ventanas
+sea justa) variando únicamente el tamaño de ventana:
+
+\begin{table}[htbp]
+\caption{Sensibilidad de la mejora relativa al tamaño de ventana (100
+semillas por fila)}
+\label{tab:extension-sensibilidad}
+\centering
+\begin{tabular}{ccc}
+\toprule
+ventana (despachos) & mejora media & desv. std. \\
+\midrule
+15 & +3.3\% & 2.15 \\
+20 & +42.4\% & 0.89 \\
+30 & +55.4\% & 0.35 \\
+40 (elegida) & +63.7\% & 0.27 \\
+50 & +69.4\% & 0.28 \\
+55 & +68.5\% & 0.26 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Dos hallazgos no anticipados al elegir la ventana de 40 únicamente por el
+criterio de "quedar bien por debajo del techo de $\sim 60$ despachos":
+con ventanas muy cortas (15 despachos) la métrica de mejora se vuelve
+matemáticamente inestable, porque su denominador ($error_A$, el error del
+control) puede caer cerca de cero por pura casualidad en semillas
+individuales, disparando el cociente a valores extremos (de ahí la
+desviación estándar de 2.15, mayor que la propia media); y la ventana
+original de un piloto preliminar de 20 despachos ya rechazaba H0 con una
+mejora positiva, pero por debajo del umbral de 50\% que se había fijado
+como criterio de éxito -- el efecto es direccionalmente robusto en todo el
+rango probado (15-55 despachos, siempre positivo salvo el caso degenerado
+de 15), pero su magnitud reportada depende materialmente de cuántos ciclos
+completos de cesión/compensación alcanza a observar la ventana elegida.
+Un chequeo adicional variando $\text{yield\_percent}$ (15\%/25\%/35\%) y
+$Q$ (30/50/70), siempre con 100 semillas, confirma que H0 se rechaza en las
+seis configuraciones probadas, con mejoras entre 52\% y 71\% -- el efecto
+no depende de una combinación particular de parámetros, aunque tampoco
+converge a un único número.

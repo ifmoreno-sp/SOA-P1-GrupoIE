@@ -175,28 +175,41 @@ entregada queda marcada con la etiqueta anotada `p1-entrega` sobre el commit
 final — ver [Tags](https://github.com/ifmoreno-sp/SOA-P1-GrupoIE/tags) del
 repositorio.
 
-## Decisiones de diseño
+## Trazabilidad del equipo
 
-### Sesgo de módulo en el sorteo de boletos (`rng_draw_ticket`)
+Detalle de PRs y revisiones por *milestone* en el
+[historial de commits](https://github.com/ifmoreno-sp/SOA-P1-GrupoIE/commits/main)
+y en [Issues](https://github.com/ifmoreno-sp/SOA-P1-GrupoIE/issues)/[Pull
+Requests](https://github.com/ifmoreno-sp/SOA-P1-GrupoIE/pulls) cerrados.
 
-El boleto ganador se calcula como `(rng_next(rng) % active_tickets) + 1`
-(ver [`src/rng.c`](src/rng.c)). La operación módulo introduce un sesgo leve
-cuando `active_tickets` no divide exacto el rango del generador (`uint32_t`,
-hasta 2³²−1): los primeros `r = (2³²−1) mod active_tickets` valores de
-boleto ocurren una vez más que el resto a lo largo del ciclo completo del
-generador.
+| Milestone | Responsabilidad | Responsable(s) | Issue | PR (autor) | Revisor principal |
+|---|---|---|---|---|---|
+| M0 | Setup del proyecto y gestión (repo, Issues, flujo de Git) | Isaac | #2 | #15 | Emmanuel |
+| M1 | Modelo de datos (`Task`), parser de CSV y CLI | Emmanuel | #3 | #16 | Isaac |
+| M2 | RNG determinista (`xorshift32`, sorteo de boletos) | Isaac | #4 | #17 | Emmanuel |
+| M3 | Carga de trabajo simulada (serie de Leibniz para π) | Emmanuel | #5 | #18 | Isaac |
+| M4 | Núcleo de concurrencia: protocolo mutex/condvars | Isaac y Emmanuel (compartido, ver nota) | #6 | #19 | Emmanuel |
+| M5 | Scheduler por lotería (bucle de despacho real) | Isaac | #7 | #21 | Emmanuel |
+| M6 | Modos de ejecución (cooperativo y quantum) | Emmanuel | #8 | #23 | Isaac |
+| M7 | Registro de eventos y resumen (`--log`/`--summary`) | Isaac | #9 | #24 | Emmanuel |
+| M8 | Validación de CLI/CSV y manejo de errores sin ejecución parcial | Isaac | #10 | #25 | Emmanuel |
+| M9 | Extensión: *compensation tickets* (cesión y compensación) | Emmanuel | #11 | #27 | Isaac |
+| M10 | Los 7 casos mínimos del enunciado + sanitizers | Isaac | #12 | #26 | Emmanuel |
+| M11 | Experimento estadístico de proporcionalidad (Casos 3/4) | Emmanuel | #13 | #29 | Isaac |
+| M12 | Documentación, informe y entrega | Isaac y Emmanuel (compartido, ver nota) | #14 | #28 | — (en progreso) |
 
-**Decisión: se acepta el sesgo y se documenta, sin corregirlo con
-rejection sampling.**
+El Milestone 4 (núcleo de concurrencia, PR #19) fue codesarrollado sobre una
+sola rama compartida, dividido por archivo: Isaac implementó `task.c`/`sync.c`
+(el protocolo mutex/condvars), Emmanuel implementó `worker.c` (el ciclo del
+hilo trabajador sobre esa interfaz), y `tests/test_concurrency.c` se escribió
+en conjunto — detalle completo en la descripción del PR.
 
-Por qué:
-- `active_tickets` es órdenes de magnitud menor que el rango del generador.
-  Por ejemplo, con `active_tickets = 150` (boletos 10/20/30/40/50), el sesgo
-  relativo entre el boleto más favorecido y el resto es de
-  `≈ 3.5 × 10⁻⁸` — siete órdenes de magnitud por debajo del error absoluto
-  que el propio enunciado tolera en el experimento de proporcionalidad
-  (`≤ 0.02`). No es una fuente plausible de desviación en los resultados.
-- Corregirlo con rejection sampling (resamplear cuando el valor cae en el
-  rango que produciría sesgo) agrega una rama de reintento al RNG —
-  superficie extra de bugs por un beneficio indetectable en este caso de
-  uso.
+El Milestone 12 (documentación y entrega, este mismo) también es compartido,
+pero no dividido por milestone: Isaac redactó un primer borrador completo
+del informe (`docs/informe/`), incluidas las secciones sobre el trabajo del
+otro integrante. Sobre ese borrador, cada quien revisa y completa la
+sección que describe el milestone que implementó (por ejemplo, Emmanuel
+verificó la Sección de Extensión y completó los resultados estadísticos del
+experimento A/B que quedaban pendientes en la Sección de Resultados). Ambos
+verifican independientemente la reconstrucción desde una copia limpia antes
+de cortar la etiqueta `p1-entrega`.
