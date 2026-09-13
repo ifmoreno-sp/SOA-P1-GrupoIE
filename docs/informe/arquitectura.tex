@@ -72,10 +72,11 @@ de forma dirigida (\texttt{pthread\_cond\_signal}, nunca
 \end{table}
 
 Ambos predicados se evalúan dentro de un \texttt{while}, nunca un
-\texttt{if}, por dos razones independientes: los despertares espurios que
-POSIX permite en \texttt{pthread\_cond\_wait}, y el caso en que varios hilos
-comparten una condvar y el que despierta encuentra que la condición ya no
-aplica. \texttt{pthread\_cond\_wait} suelta el mutex y duerme el hilo de
+\texttt{if}, por dos razones independientes: POSIX permite explícitamente
+que \texttt{pthread\_cond\_wait} retorne sin que nadie haya señalado la
+condición (un despertar sin causa aparente, conocido en la literatura como
+\textit{spurious wakeup}); y el caso en que varios hilos comparten una
+condvar y el que despierta encuentra que la condición ya no aplica. \texttt{pthread\_cond\_wait} suelta el mutex y duerme el hilo de
 forma atómica, y vuelve a tomar el mutex antes de retornar --- evita la
 condición de \textit{señal perdida} que ocurriría si soltar el mutex y
 dormirse fueran dos pasos separados.
