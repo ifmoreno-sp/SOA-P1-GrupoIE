@@ -46,6 +46,67 @@ def run_seeds(binary, input_csv, mode_args, seeds, max_dispatches):
     return shares_by_task
 
 
+def _read_task_ids(input_csv):
+    """Ids de tarea en el orden del CSV de entrada. Se usan para inicializar
+    en 0 el acumulado de toda tarea que aun no haya ganado ningun despacho,
+    de forma que las listas de share por tarea queden alineadas dispacho a
+    dispacho (ver run_single_seed_log)."""
+    with open(input_csv, newline="") as f:
+        reader = csv.DictReader(f)
+        return [int(row["id"]) for row in reader]
+
+
+def run_single_seed_log(binary, input_csv, mode_args, seed, max_dispatches):
+    """Corre `binary` una vez con `seed` fija conservando el log de eventos, y
+    calcula el share observado ACUMULADO de cada tarea tras cada despacho
+    (para graficar convergencia; run_seeds solo retorna el share final de la
+    ventana, no su evolucion).
+
+    El acumulado usa run_units por despacho, igual que observed_share en el
+    resumen (results_write_summary_row): share_tarea(k) = unidades corridas
+    por esa tarea en los primeros k despachos / unidades totales corridas en
+    esos k despachos. Las filas STOPPED que agrega results.c cuando
+    --max-dispatches corta una tarea a medias se ignoran: no son un despacho
+    real, sino la constancia de que esa tarea quedo en READY.
+
+    Retorna (dispatches, shares_by_task): `dispatches` es la lista de
+    numeros de despacho real (1..N) y `shares_by_task` es
+    {task_id: [share acumulado tras cada despacho de `dispatches`]}, con una
+    entrada por cada tarea del CSV de entrada en cada posicion (0.0 antes de
+    su primer despacho ganado)."""
+    task_ids = _read_task_ids(input_csv)
+    log_fd, log_path = tempfile.mkstemp(suffix=".csv")
+    os.close(log_fd)
+    try:
+        cmd = [binary, "--input", input_csv, *mode_args,
+               "--seed", str(seed), "--max-dispatches", str(max_dispatches),
+               "--log", log_path]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"seed {seed} fallo (exit {result.returncode}): {result.stderr}")
+
+        cumulative = {task_id: 0 for task_id in task_ids}
+        total = 0
+        dispatches = []
+        shares_by_task = {task_id: [] for task_id in task_ids}
+        with open(log_path, newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row["state_after"] == "STOPPED":
+                    continue
+                winner_id = int(row["winner_id"])
+                run_units = int(row["run_units"])
+                cumulative[winner_id] += run_units
+                total += run_units
+                dispatches.append(int(row["dispatch"]))
+                for task_id in task_ids:
+                    shares_by_task[task_id].append(cumulative[task_id] / total)
+    finally:
+        os.unlink(log_path)
+    return dispatches, shares_by_task
+
+
 def report(shares_by_task, objective_by_task, error_tolerance, label):
     """Imprime media/desviacion estandar/error absoluto por tarea frente a
     su share objetivo. Retorna True si el error absoluto MEDIO entre todas
