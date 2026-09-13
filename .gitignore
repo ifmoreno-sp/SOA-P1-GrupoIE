@@ -10,6 +10,14 @@ lottery_scheduler
 results/*
 !results/.gitkeep
 
+# Excepcion: resultados seleccionados del experimento de proporcionalidad
+# (M11/Issue #13) -- se versionan para que las graficas queden visibles
+# directo en el PR, aunque el experimento sea reproducible corriendo
+# scripts/experimento_proporcionalidad.py.
+!results/proporcionalidad/
+!results/proporcionalidad/*.png
+!results/proporcionalidad/*.csv
+
 # Python (scripts/casos_enunciado/*.py)
 __pycache__/
 *.pyc
