@@ -145,6 +145,12 @@ Ver `scripts/experiment_compensation_ab.py` para el experimento A/B completo
 de la extensión (múltiples semillas, cálculo de error respecto al share
 objetivo).
 
+```bash
+# Experimento de proporcionalidad (Casos 3 y 4, 30 semillas): barrido
+# completo + graficas de convergencia y objetivo vs. observado
+python3 scripts/experimento_proporcionalidad.py
+```
+
 ## Estructura del repositorio
 
 ```
@@ -154,8 +160,11 @@ include/            # headers publicos (.h)
 tests/              # pruebas unitarias (.c) y de CLI/CSV (.sh), con tests/fixtures/
 scripts/
   casos_enunciado/  # los 7 casos minimos del enunciado (make casos-enunciado)
-  experiment_compensation_ab.py  # experimento A/B de la extension
-results/            # salidas de --log/--summary (no versionado, salvo .gitkeep)
+  experiment_compensation_ab.py   # experimento A/B de la extension (M9)
+  experimento_proporcionalidad.py # experimento estadistico Casos 3/4 (M11)
+results/            # salidas de --log/--summary; no versionado salvo
+                     # .gitkeep y results/proporcionalidad/ (graficas y CSVs
+                     # seleccionados del experimento de M11)
 docs/               # informe.pdf y material de entrega
 ```
 
