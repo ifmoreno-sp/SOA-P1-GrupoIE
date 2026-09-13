@@ -55,14 +55,17 @@ planificador de CPU por lotería (\textit{lottery scheduling}) en espacio de
 usuario, inspirado en el trabajo de Waldspurger y Weihl~\cite{Waldspurger1994}.
 El sistema coordina tareas concurrentes mediante \textit{pthreads}, un mutex
 y variables de condición, sin espera activa ni un único bloqueo que impida
-demostrar el protocolo de despacho. Se presentan la arquitectura y el
-protocolo de sincronización, el pseudocódigo de los algoritmos centrales
-(sorteo, activación, cesión y terminación), la verificación contra los siete
-casos mínimos del enunciado bajo ThreadSanitizer, AddressSanitizer y
-LeakSanitizer, los resultados del experimento de proporcionalidad, la
-extensión elegida (\textit{compensation tickets}) y su comparación con el
-paper original, y una discusión de los principales \textit{trade-offs} de
-diseño.
+demostrar el protocolo de despacho. Los siete casos mínimos de
+funcionamiento exigidos cumplen sin hallazgos bajo los \textit{sanitizers}
+requeridos, y el experimento de proporcionalidad confirma que el sorteo
+pondera correctamente por boletos, con un error absoluto medio muy por
+debajo de la tolerancia del enunciado. La extensión elegida,
+\textit{compensation tickets}, se valida con un experimento A/B propio: la
+tarea que cede tempranamente y recibe boletos compensados recupera una
+participación de CPU sustancialmente más cercana a su valor objetivo
+(mejora relativa de $+63.7\%$, estadísticamente significativa). El informe
+cierra con una comparación conceptual contra el paper original y una
+discusión crítica de los \textit{trade-offs} de diseño más relevantes.
 \end{abstract}
 
 \begin{IEEEkeywords}

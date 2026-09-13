@@ -1,30 +1,19 @@
 \section{Extensión: Compensation Tickets}
 \label{sec:extension}
 
-\subsection{Extensión elegida y motivación}
+\subsection{Extensión elegida}
 
 De las cinco extensiones propuestas por el enunciado (Tabla~\ref{tab:opciones},
 Sección~\ref{sec:analisis-extension}), el equipo eligió la
-\textbf{Opción A: \textit{compensation tickets}}. La extensión exige
-"modelar una tarea que cede antes de consumir el \textit{quantum} e inflar
-temporalmente su valor según la fracción consumida", y responde a la
-pregunta "¿recupera la participación de CPU a la que tenía derecho?". En el
-paper original~\cite{Waldspurger1994}, este mecanismo compensa a un
-servidor que se bloquea esperando E/S en nombre de un cliente y no debería
-ser penalizado frente a clientes que nunca se bloquean: al reactivarse, el
-servidor recibe temporalmente más boletos, proporcionales al inverso de la
-fracción de su último \textit{quantum} que efectivamente usó, hasta agotar
-el equivalente a un \textit{quantum} completo de CPU recibido en boletos
-compensados.
-
-Se eligió esta opción sobre las otras cuatro porque reutiliza el mismo
-mecanismo cooperativo/quantum que el proyecto base de todas formas debía
-implementar (no agrega una máquina de estados nueva ni una fuente de
-eventos externa), porque su pregunta de evaluación se responde con el mismo
-experimento de proporcionalidad que ya exige el proyecto (comparar
-\texttt{observed\_share} con y sin compensación), y porque presenta menor
-superficie de bugs de concurrencia nuevos que la Opción C (estados
-cliente/servidor) o la D (doble contabilidad de monedas).
+\textbf{Opción A: \textit{compensation tickets}}: "modelar una tarea que
+cede antes de consumir el \textit{quantum} e inflar temporalmente su valor
+según la fracción consumida", respondiendo a la pregunta \textbf{¿recupera
+la participación de CPU a la que tenía derecho?} La comparación completa
+contra las otras cuatro opciones, y por qué se prefirió esta, está en la
+Sección~\ref{sec:analisis-extension}; en resumen, se eligió por reutilizar
+el mismo mecanismo cooperativo/quantum que el proyecto base de todas formas
+debía implementar, y por responder su pregunta de evaluación con el mismo
+experimento de proporcionalidad que ya exige el proyecto.
 
 \subsection{El escenario debe forzarse}
 
@@ -63,8 +52,7 @@ puede repetirse en la siguiente activación que gane.
 \subsection{Decisiones de implementación}
 
 Tres puntos que el diseño original dejaba abiertos a propósito se
-resolvieron al implementar (detalle completo en
-\texttt{decisiones\_diseno.md}, D15, del repositorio de conocimiento):
+resolvieron al implementar:
 
 \begin{enumerate}
 \item \textbf{La fracción $f$ se mide contra el bloque que decide el modo,
@@ -78,7 +66,7 @@ resolvieron al implementar (detalle completo en
   Ya cumple el rol de "boletos base"; se agregó \texttt{effective\_tickets}
   como campo nuevo (igual a \texttt{tickets} salvo compensación activa) en
   vez de tocar los sitios que ya construían o leían \texttt{Task.tickets}
-  desde el Milestone 1.
+  desde el modelo de datos original.
 \item \textbf{La configuración de qué tareas ceden vive en un archivo
   aparte.} Nunca en el CSV principal de tareas: una bandera ausente por
   defecto es una garantía más fuerte de que los casos base no se ven
@@ -95,6 +83,45 @@ activación, indefinidamente, sin compensación--- de modo que la comparación
 entre corridas con y sin esta bandera aísla exactamente el efecto de la
 compensación en sí.
 
+\subsection{Prueba automatizada}
+
+Además del experimento estadístico (Sección~\ref{sec:resultados-extension}),
+el mecanismo se verifica con pruebas unitarias dedicadas en
+\texttt{tests/test\_compensation.c} (53 verificaciones): cesión y ciclo
+completo de compensación en ambos modos de ejecución, cesión sin
+compensación real cuando el bloque es demasiado pequeño, y que
+\texttt{--disable-compensation} nunca infla \texttt{effective\_tickets} ---
+cada verificación se comparó dispacho a dispacho contra el cálculo manual
+esperado. \texttt{tests/test\_concurrency.c} agrega una verificación de que
+\texttt{sync\_select\_winner} pondera el sorteo por
+\texttt{effective\_tickets} y no por \texttt{tickets} base.
+
+\subsection{Comparación con el paper}
+
+En el paper original~\cite{Waldspurger1994}, este mecanismo compensa a un
+servidor que se bloquea esperando E/S en nombre de un cliente y no debería
+ser penalizado frente a clientes que nunca se bloquean: al reactivarse, el
+servidor recibe temporalmente más boletos, proporcionales al inverso de la
+fracción de su último \textit{quantum} que efectivamente usó, hasta agotar
+el equivalente a un \textit{quantum} completo de CPU recibido en boletos
+compensados --- exactamente la Ecuación~\ref{eq:compensacion} implementada
+aquí.
+
+Lo que se preserva del mecanismo descrito por el paper: la inflación de
+boletos es proporcional a la fracción \emph{no} consumida del bloque, es
+\textbf{temporal} (dura exactamente lo que tarda en "pagarse" el bloque
+cedido en unidades de trabajo, ni una activación más), y se activa por la
+cesión temprana misma, no por una política externa que decida cuándo
+compensar. Lo que se simplifica frente al paper: no hay un cliente real
+bloqueado en una llamada IPC que dispare la cesión del servidor --- se
+fuerza explícitamente vía \texttt{--yield-config} (Sección anterior) porque
+el prototipo no modela E/S real; y no se implementa la Opción C
+(\textit{ticket transfer}) del cliente hacia el servidor, así que esta
+extensión demuestra la recuperación de participación de CPU del lado
+compensado, pero no la transferencia de boletos desde el lado bloqueado en
+sí (discusión completa de limitaciones del prototipo en
+Sección~\ref{sec:analisis-extension}).
+
 \subsection{Hipótesis}
 
 \begin{itemize}
@@ -107,7 +134,98 @@ compensación en sí.
   \texttt{observed\_share} de una tarea que cede tempranamente.
 \end{itemize}
 
-El diseño experimental (control \texttt{--disable-compensation} vs.
-tratamiento con compensación activa, misma semilla, mismo CSV, misma
-ventana de despachos, repetido sobre múltiples semillas) y sus resultados
-se presentan en la Sección~\ref{sec:resultados-extension}.
+El diseño experimental es control (\texttt{--disable-compensation}) vs.
+tratamiento (compensación activa), misma semilla, mismo CSV, misma ventana
+de despachos, repetido sobre múltiples semillas.
+
+\subsection{Resultados}
+\label{sec:resultados-extension}
+
+Se ejecutó \texttt{scripts/experiment\_compensation\_ab.py} con sus
+parámetros por defecto: tarea 3 de \texttt{tests/fixtures/valid\_5.csv} (30
+de 150 boletos, \textit{target\_share}$=0.20$), modo \textit{quantum}
+($Q=50$), $\text{yield\_percent}=25\%$, ventana de
+$\text{--max-dispatches}=40$ sobre 100 semillas ($1,\ldots,100$). La
+ventana se eligió deliberadamente por debajo de $\sim 60$ despachos --- el
+número esperado de despachos para que la tarea con más boletos agote su
+trabajo asignado --- de forma que ninguna tarea termine dentro de la
+ventana observada (misma razón que en el experimento de proporcionalidad,
+Sección~\ref{sec:resultados}, pero aplicada al límite opuesto: aquí
+interesa una ventana corta para que la cesión temprana sea observable con
+pocos ciclos de cesión/compensación).
+
+\begin{table}[htbp]
+\caption{Experimento A/B de compensation tickets: error absoluto de
+\texttt{observed\_share} de la tarea 3 respecto a su target (0.20), control
+vs. tratamiento, 100 semillas}
+\label{tab:extension-ab}
+\centering
+\begin{tabular}{lcc}
+\toprule
+ & media & desv. std. \\
+\midrule
+error$_A$ (sin compensar, control) & 0.1395 & 0.0224 \\
+error$_B$ (compensando, tratamiento) & 0.0502 & 0.0343 \\
+mejora relativa $(error_A - error_B)/error_A$ & +63.67\% & 26.64\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La mejora relativa promedio sobre las 100 semillas es de $+63.67\%$. Tratando
+las 100 semillas como muestras independientes, el error estándar de la
+media es $\text{SEM} = 0.2664/\sqrt{100} = 0.0266$, y el intervalo de
+confianza al 95\% (usando $z=1.96$ de la distribución normal estándar que
+predice el Teorema del Límite Central para la media de una muestra de este
+tamaño~\cite{NISTCSRCCLT, Lu2020, CrabillMaurer2023}) es
+\[
+  0.6367 \pm 1.96 \times 0.0266 = [58.4\%,\ 68.9\%].
+\]
+Como este intervalo no incluye 0 (ni valores cercanos), se rechaza H0: la
+compensación tiene un efecto medible y sustancial sobre
+\texttt{observed\_share} de una tarea que cede tempranamente, consistente
+con H1 --- \textbf{la tarea sí recupera la participación de CPU a la que
+tenía derecho} según sus boletos base, dentro del rango de ventanas
+verificado a continuación.
+
+\textbf{La magnitud depende de la ventana, no solo su signo.} Antes de
+fijar $\text{--max-dispatches}=40$ como definitivo, se repitió el mismo
+experimento (100 semillas cada vez, para que la comparación entre ventanas
+sea justa) variando únicamente el tamaño de ventana:
+
+\begin{table}[htbp]
+\caption{Sensibilidad de la mejora relativa al tamaño de ventana (100
+semillas por fila)}
+\label{tab:extension-sensibilidad}
+\centering
+\begin{tabular}{ccc}
+\toprule
+ventana (despachos) & mejora media & desv. std. \\
+\midrule
+15 & +3.3\% & 2.15 \\
+20 & +42.4\% & 0.89 \\
+30 & +55.4\% & 0.35 \\
+40 (elegida) & +63.7\% & 0.27 \\
+50 & +69.4\% & 0.28 \\
+55 & +68.5\% & 0.26 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Dos hallazgos no anticipados al elegir la ventana de 40 únicamente por el
+criterio de "quedar bien por debajo del techo de $\sim 60$ despachos":
+con ventanas muy cortas (15 despachos) la métrica de mejora se vuelve
+matemáticamente inestable, porque su denominador ($error_A$, el error del
+control) puede caer cerca de cero por pura casualidad en semillas
+individuales, disparando el cociente a valores extremos (de ahí la
+desviación estándar de 2.15, mayor que la propia media); y la ventana
+original de un piloto preliminar de 20 despachos ya rechazaba H0 con una
+mejora positiva, pero por debajo del umbral de 50\% que se había fijado
+como criterio de éxito -- el efecto es direccionalmente robusto en todo el
+rango probado (15-55 despachos, siempre positivo salvo el caso degenerado
+de 15), pero su magnitud reportada depende materialmente de cuántos ciclos
+completos de cesión/compensación alcanza a observar la ventana elegida.
+Un chequeo adicional variando $\text{yield\_percent}$ (15\%/25\%/35\%) y
+$Q$ (30/50/70), siempre con 100 semillas, confirma que H0 se rechaza en las
+seis configuraciones probadas, con mejoras entre 52\% y 71\% -- el efecto
+no depende de una combinación particular de parámetros, aunque tampoco
+converge a un único número.

@@ -17,9 +17,12 @@ La extensión elegida, \textit{compensation tickets}, reutiliza el mecanismo
 cooperativo/quantum ya construido para modelar una tarea que cede
 tempranamente y recupera participación de CPU mediante boletos inflados
 temporalmente, sin alterar el comportamiento del planificador base cuando la
-extensión no está activa. La cuantificación estadística final de cuánta
-participación recupera --- y su sensibilidad al tamaño de la ventana
-observada --- se completa en la Sección~\ref{sec:resultados-extension}.
+extensión no está activa. El experimento A/B (Sección~\ref{sec:resultados-extension})
+confirma que la tarea comparada recupera una fracción sustancial y
+estadísticamente significativa de la participación a la que tenía derecho
+(mejora relativa $+63.67\%$, IC 95\% $[58.4\%, 68.9\%]$ sobre 100 semillas),
+efecto robusto en dirección pero sensible en magnitud al tamaño de la
+ventana de observación y a los demás parámetros del experimento.
 
 La comparación con el paper original deja claras las simplificaciones
 deliberadas de este prototipo: un único CPU lógico simulado en vez de

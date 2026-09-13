@@ -6,56 +6,69 @@
 La Tabla~\ref{tab:casos} resume los siete casos mínimos que exige la sección
 "Pruebas Mínimas de Funcionamiento" del enunciado, cada uno invocable de
 forma aislada desde \texttt{scripts/casos\_enunciado/} y en conjunto vía
-\texttt{make casos-enunciado}. Los comandos exactos, los \textit{fixtures}
-usados y la implementación de cada caso están documentados en el README del
-repositorio de código y en \texttt{milestone10\_notas\_tecnicas.md} del
-repositorio de conocimiento.
+\texttt{make casos-enunciado}. Los comandos exactos y los \textit{fixtures}
+usados están documentados en el \texttt{README} del repositorio.
 
-\begin{table}[htbp]
+\begin{table*}[htbp]
 \caption{Los 7 casos mínimos: comando, esperado, obtenido, conclusión}
 \label{tab:casos}
+\centering
 \renewcommand{\arraystretch}{1.25}
-\begin{tabular}{p{1.55cm}p{2.7cm}p{3.3cm}}
+\begin{tabular}{p{1.2cm}p{3.6cm}p{4.0cm}p{4.9cm}p{1.6cm}}
 \toprule
-\textbf{Caso} & \textbf{Esperado} & \textbf{Obtenido} \\
+\textbf{Caso} & \textbf{Comando} & \textbf{Esperado} & \textbf{Obtenido} & \textbf{Conclusión} \\
 \midrule
 1. Validación &
+  \texttt{casos\_enunciado/\allowbreak caso1\_validacion.sh} &
   Rechazo con código $\neq 0$ y sin ejecución parcial &
-  8/8 verificaciones cumplen (los 4 escenarios del enunciado + evidencia de sin ejecución parcial) \\
+  8/8 verificaciones cumplen (los 4 escenarios del enunciado + evidencia de sin ejecución parcial) &
+  Cumple \\
 \midrule
 2. Reproducibilidad &
+  \texttt{casos\_enunciado/\allowbreak caso2\_reproducibilidad.sh} &
   Dos corridas idénticas; las 5 tareas terminan &
-  Logs idénticos byte a byte; 5/5 terminan \\
+  Logs idénticos byte a byte; 5/5 terminan &
+  Cumple \\
 \midrule
 3. Igualdad &
+  \texttt{python3 casos\_enunciado/\allowbreak caso3\_igualdad.py} &
   Share medio $\approx 0.20$, con desviación y error &
-  Error absoluto medio $0.000477$ (tolerancia $0.02$), 30 semillas \\
+  Error absoluto medio $0.000477$ (tolerancia $0.02$), 30 semillas &
+  Cumple \\
 \midrule
 4. Proporcionalidad &
+  \texttt{python3 casos\_enunciado/\allowbreak caso4\_proporcionalidad.py} &
   Shares objetivo $1/15 \ldots 5/15$; error $\leq 0.02$ &
-  Error absoluto medio $0.001104$; shares 1/15\ldots5/15 confirmados \\
+  Error absoluto medio $0.001104$; shares 1/15\ldots5/15 confirmados &
+  Cumple \\
 \midrule
 5. Terminación &
+  \texttt{casos\_enunciado/\allowbreak caso5\_terminacion.sh} &
   Ninguna FINISHED vuelve a ganar; suma correcta; joins completos &
-  15/15 verificaciones cumplen \\
+  15/15 verificaciones cumplen &
+  Cumple \\
 \midrule
 6. Modos &
+  \texttt{casos\_enunciado/\allowbreak caso6\_modos.sh} &
   Mismo trabajo final y $\pi$ entre modos &
-  7/7 verificaciones cumplen; $\pi$ idéntico bit a bit \\
+  7/7 verificaciones cumplen; $\pi$ idéntico bit a bit &
+  Cumple \\
 \midrule
 7. Estrés &
+  \texttt{casos\_enunciado/\allowbreak caso7\_estres.sh <bin> <label>} (×3 sanitizers) &
   Sin deadlock, fuga, acceso inválido, \textit{data race} ni UB &
-  12/12 en las tres variantes de \textit{sanitizer} (ver \S\ref{sec:sanitizers}) \\
+  12/12 en las tres variantes de \textit{sanitizer} (ver \S\ref{sec:sanitizers}) &
+  Cumple \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}
 
 Los Casos 1, 5 y 6 reportan únicamente el escenario que nombra el enunciado
---- no toda la suite de ingeniería heredada de los milestones donde se
-originaron (Milestone 1/8 para la validación de CLI/CSV, Milestone 5 para el
-bucle del planificador, Milestone 6 para los modos de ejecución). Esa
-cobertura adicional (52 verificaciones en total: 20 de validación extra de
-CLI/CSV, 20 del bucle del planificador, 39 de los modos de ejecución más 9
+--- no toda la suite de ingeniería heredada de los módulos donde se
+originaron (validación de CLI/CSV, bucle del planificador, modos de
+ejecución). Esa cobertura adicional (52 verificaciones en total: 20 de
+validación extra de CLI/CSV, 20 del bucle del planificador, 39 de los modos
+de ejecución más 9
 de la validación de \texttt{--yield-config}) se mantiene como parte del
 ciclo normal de desarrollo (\texttt{make test}), separada de la evidencia
 mínima que exige el enunciado.

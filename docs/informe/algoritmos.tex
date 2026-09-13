@@ -1,11 +1,11 @@
 \section{Algoritmos}
 \label{sec:algoritmos}
 
-Esta sección presenta en pseudocódigo los cuatro algoritmos centrales del
+Esta sección presenta en pseudocódigo los cinco algoritmos centrales del
 planificador: el sorteo ponderado, el bucle de despacho del planificador, el
-ciclo de un worker (que incluye la cesión y la actualización de boletos
-activos de la extensión), y el cálculo del tamaño de bloque cooperativo. El
-código real vive en \texttt{src/sync.c}, \texttt{src/scheduler.c} y
+ciclo de un worker, la cesión temprana y actualización de boletos activos de
+la extensión, y el cálculo del tamaño de bloque cooperativo. El código real
+vive en \texttt{src/sync.c}, \texttt{src/scheduler.c} y
 \texttt{src/worker.c}.
 
 \begin{algorithm}[htbp]
@@ -70,8 +70,8 @@ experimento de proporcionalidad ($\leq 0.02$).
   \IF{el planificador solicitó parada antes de despachar a $t$}
     \STATE \textbf{return} \COMMENT{$t$ queda READY, sin ejecutar nada}
   \ENDIF
-  \STATE $\text{bloque} \gets$ tamaño de bloque del modo (Algoritmo~\ref{alg:cooperativo} en modo cooperativo, o quantum $Q$ fijo)
-  \STATE $u \gets$ \textsc{ActualizarBoletos}($t$, bloque) \COMMENT{Sección~\ref{sec:extension}; sin \texttt{--yield-config}, $u=\min(\text{bloque}, \text{restante})$}
+  \STATE $\text{bloque} \gets$ tamaño de bloque del modo (Algoritmo~\ref{alg:cooperativo} en modo cooperativo, o quantum $Q$ fijo), topado por lo que falta
+  \STATE $u \gets$ \textsc{ActualizarBoletos}($t$, bloque) \COMMENT{Algoritmo~\ref{alg:actualizar-boletos}; sin \texttt{--yield-config}, $u=\text{bloque}$}
   \STATE \texttt{workload\_run\_units}($t$, $u$) \COMMENT{fuera del mutex}
   \IF{$t.\text{completado} = t.\text{trabajo\_total}$}
     \STATE $\text{siguiente} \gets \text{FINISHED}$
@@ -85,6 +85,42 @@ experimento de proporcionalidad ($\leq 0.02$).
 \ENDLOOP
 \end{algorithmic}
 \end{algorithm}
+
+\begin{algorithm}[htbp]
+\caption{Cesión y actualización de boletos activos (\texttt{ActualizarBoletos}, extensión, Sección~\ref{sec:extension})}
+\label{alg:actualizar-boletos}
+\begin{algorithmic}[1]
+\REQUIRE tarea $t$, bloque asignado por el modo esta activación
+\IF{$t$ no tiene \texttt{--yield-config} activo}
+  \STATE \textbf{return} bloque \COMMENT{comportamiento identico a sin extension}
+\ENDIF
+\IF{$t.\text{compensa}$ \AND $t.\text{deuda} > 0$}
+  \IF{bloque $\ge t.\text{deuda}$}
+    \STATE $t.\text{deuda} \gets 0$;\ \ $t.\text{effective\_tickets} \gets t.\text{tickets}$
+  \ELSE
+    \STATE $t.\text{deuda} \gets t.\text{deuda} - \text{bloque}$
+  \ENDIF
+  \STATE \textbf{return} bloque \COMMENT{corre completo mientras compensa}
+\ENDIF
+\STATE $\text{cedido} \gets \lceil \text{bloque} \times t.\text{yield\_percent} / 100 \rceil$
+\IF{$\text{cedido} \ge \text{bloque}$}
+  \STATE \textbf{return} bloque \COMMENT{bloque muy chico: no hay cesion real posible}
+\ENDIF
+\IF{$t.\text{compensa}$}
+  \STATE $t.\text{deuda} \gets \text{bloque} - \text{cedido}$
+  \STATE $t.\text{effective\_tickets} \gets \lceil t.\text{tickets} \times \text{bloque} / \text{cedido} \rceil$
+\ENDIF
+\STATE \textbf{return} cedido
+\end{algorithmic}
+\end{algorithm}
+
+El caso base (sin \texttt{--yield-config}) es indistinguible del planificador
+sin extensión: la función retorna el bloque sin tocar ningún campo de
+compensación. Con \texttt{--disable-compensation} activo (control del
+experimento A/B, Sección~\ref{sec:resultados-extension}), $t.\text{compensa}
+= 0$ y la rama de "deuda pendiente" nunca se activa: la tarea cede la misma
+fracción en cada activación, indefinidamente, sin inflar
+\texttt{effective\_tickets}.
 
 \begin{algorithm}[htbp]
 \caption{Tamaño de bloque cooperativo (\texttt{cooperative\_slice\_size})}
@@ -107,3 +143,16 @@ puede exigir resultados idénticos entre ambos modos con solo distinto costo
 de coordinación. La división se implementa con aritmética entera
 ($\lceil a/b \rceil = \lfloor (a+b-1)/b \rfloor$) en vez de \texttt{double},
 para preservar el determinismo bit a bit exigido por el enunciado.
+
+\subsection{Tipo numérico de la serie de $\pi$}
+
+\texttt{Task.term} y \texttt{Task.pi\_approx} se representan como
+\texttt{double} (\texttt{workload.c}), a diferencia de la aritmética entera
+usada arriba para los tamaños de bloque. No hay riesgo de \textit{overflow}
+en los productos intermedios de la recurrencia: cada factor
+$\frac{(2j-1)^2}{2j(2j+1)} < 1$, así que \texttt{term} es estrictamente
+decreciente desde $1.0$ en cada iteración, nunca crece. El único fenómeno de
+punto flotante presente es la pérdida gradual de precisión hacia cero a
+medida que $j$ crece, irrelevante para el propósito de la carga de trabajo:
+el enunciado exige conservar estado y evidenciarlo con un valor verificable,
+no una convergencia rápida o de alta precisión de la serie.

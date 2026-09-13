@@ -102,15 +102,16 @@ planificador.
     box/.style={draw=black, rounded corners=3pt, text width=3.65cm,
                 minimum height=0.9cm, align=center, font=\scriptsize},
     arr/.style={-{Stealth[length=2mm]}, thick},
-    lbl/.style={font=\tiny, align=center}
+    lbl/.style={font=\tiny, align=center},
+    node distance=6mm
 ]
-\node[box, fill=blue!8] (sel)  at (0,6.0) {\texttt{sync\_select\_winner}\\(toma mutex, suma \texttt{effective\_tickets} de READY, sortea, suelta mutex)};
-\node[box, fill=blue!8] (disp) at (0,4.6) {\texttt{sync\_dispatch}\\(toma mutex, assert exclusión, \texttt{state=RUNNING}, \texttt{signal(cond\_worker[i])}, suelta mutex)};
-\node[box, fill=blue!8] (wait) at (0,3.2) {\texttt{sync\_wait\_for\_event}\\(toma mutex, \texttt{while(!event\_ready) cond\_wait}, suelta mutex)};
+\node[box, fill=blue!8] (sel) {\texttt{sync\_select\_winner}\\(toma mutex, suma \texttt{effective\_tickets} de READY, sortea, suelta mutex)};
+\node[box, fill=blue!8, below=of sel] (disp) {\texttt{sync\_dispatch}\\(toma mutex, assert exclusión, \texttt{state=RUNNING}, \texttt{signal(cond\_worker[i])}, suelta mutex)};
+\node[box, fill=blue!8, below=of disp] (wait) {\texttt{sync\_wait\_for\_event}\\(toma mutex, \texttt{while(!event\_ready) cond\_wait}, suelta mutex)};
 
-\node[box, fill=orange!12] (wd)   at (0,1.4) {\texttt{sync\_wait\_for\_dispatch}\\(worker $i$, dormido hasta \texttt{state==RUNNING})};
-\node[box, fill=green!12]  (work) at (0,0.0) {\texttt{workload\_run\_units}\\ \textbf{(sin mutex)} --- seguro por el invariante de exclusión};
-\node[box, fill=orange!12] (fin)  at (0,-1.4) {\texttt{sync\_finish\_turn}\\(toma mutex, \texttt{state=READY|FINISHED}, \texttt{event\_ready=1}, \texttt{signal(cond\_scheduler)}, suelta mutex)};
+\node[box, fill=orange!12, below=16mm of wait] (wd) {\texttt{sync\_wait\_for\_dispatch}\\(worker $i$, dormido hasta \texttt{state==RUNNING})};
+\node[box, fill=green!12, below=of wd] (work) {\texttt{workload\_run\_units}\\ \textbf{(sin mutex)} --- seguro por el invariante de exclusión};
+\node[box, fill=orange!12, below=of work] (fin) {\texttt{sync\_finish\_turn}\\(toma mutex, \texttt{state=READY|FINISHED}, \texttt{event\_ready=1}, \texttt{signal(cond\_scheduler)}, suelta mutex)};
 
 \draw[arr] (sel.south) -- (disp.north);
 \draw[arr] (disp.south) -- (wait.north);
