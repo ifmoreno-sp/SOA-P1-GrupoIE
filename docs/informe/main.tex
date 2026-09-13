@@ -1,0 +1,94 @@
+\documentclass[journal]{IEEEtran}
+
+% ===================
+% Packages
+% ===================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[spanish]{babel}
+\usepackage{amsmath, amsfonts, amssymb}
+\usepackage{graphicx}
+\usepackage{cite}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage[hyphens]{url}
+\usepackage{subfig}
+\usepackage{tikz}
+\usetikzlibrary{babel,arrows.meta,positioning,fit}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage[breaklinks=true,hidelinks]{hyperref}
+
+% Bloque de "pendiente" bien visible en el PDF compilado, para las
+% secciones que dependen del trabajo estadistico de la extension todavia
+% en curso -- se reemplaza por contenido real antes de la entrega.
+\newcommand{\pendiente}[1]{%
+  \begin{quote}\small\color{black!60}%
+  \textbf{[PENDIENTE --- #1]}
+  \end{quote}%
+}
+
+% ===================
+% Title and Authors
+% ===================
+\title{Planificador por Lotería en Espacio de Usuario:\\
+Diseño, Verificación y Extensión con \textit{Compensation Tickets}}
+
+\author{
+    Isaac Francisco Moreno Fuentes,~\\
+    Emmanuel Barrantes Vargas\\
+    \thanks{Isaac Francisco Moreno Fuentes y Emmanuel Barrantes Vargas son estudiantes del curso MC 6004 Sistemas Operativos Avanzados, Tecnológico de Costa Rica, II semestre 2026.}
+}
+
+% ===================
+% Beginning of Document
+% ===================
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Este informe documenta el diseño, la implementación y la verificación de un
+planificador de CPU por lotería (\textit{lottery scheduling}) en espacio de
+usuario, inspirado en el trabajo de Waldspurger y Weihl~\cite{Waldspurger1994}.
+El sistema coordina tareas concurrentes mediante \textit{pthreads}, un mutex
+y variables de condición, sin espera activa ni un único bloqueo que impida
+demostrar el protocolo de despacho. Se presentan la arquitectura y el
+protocolo de sincronización, el pseudocódigo de los algoritmos centrales
+(sorteo, activación, cesión y terminación), la verificación contra los siete
+casos mínimos del enunciado bajo ThreadSanitizer, AddressSanitizer y
+LeakSanitizer, los resultados del experimento de proporcionalidad, la
+extensión elegida (\textit{compensation tickets}) y su comparación con el
+paper original, y una discusión de los principales \textit{trade-offs} de
+diseño.
+\end{abstract}
+
+\begin{IEEEkeywords}
+lottery scheduling, proportional-share, pthreads, sincronización, compensation tickets
+\end{IEEEkeywords}
+
+% ===================
+% Main Sections
+% ===================
+\input{introduccion}
+\input{arquitectura}
+\input{algoritmos}
+\input{pruebas}
+\input{resultados}
+\input{extension}
+\input{analisis_paper}
+\input{tradeoffs}
+\input{conclusiones}
+\input{declaracion_transparencia}
+
+% ===================
+% References
+% ===================
+\bibliographystyle{IEEEtran}
+\bibliography{referencias}
+
+\end{document}

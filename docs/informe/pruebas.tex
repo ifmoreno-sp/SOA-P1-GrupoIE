@@ -1,0 +1,92 @@
+\section{Pruebas y Verificación}
+\label{sec:pruebas}
+
+\subsection{Los siete casos mínimos de funcionamiento}
+
+La Tabla~\ref{tab:casos} resume los siete casos mínimos que exige la sección
+"Pruebas Mínimas de Funcionamiento" del enunciado, cada uno invocable de
+forma aislada desde \texttt{scripts/casos\_enunciado/} y en conjunto vía
+\texttt{make casos-enunciado}. Los comandos exactos, los \textit{fixtures}
+usados y la implementación de cada caso están documentados en el README del
+repositorio de código y en \texttt{milestone10\_notas\_tecnicas.md} del
+repositorio de conocimiento.
+
+\begin{table}[htbp]
+\caption{Los 7 casos mínimos: comando, esperado, obtenido, conclusión}
+\label{tab:casos}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{p{1.55cm}p{2.7cm}p{3.3cm}}
+\toprule
+\textbf{Caso} & \textbf{Esperado} & \textbf{Obtenido} \\
+\midrule
+1. Validación &
+  Rechazo con código $\neq 0$ y sin ejecución parcial &
+  8/8 verificaciones cumplen (los 4 escenarios del enunciado + evidencia de sin ejecución parcial) \\
+\midrule
+2. Reproducibilidad &
+  Dos corridas idénticas; las 5 tareas terminan &
+  Logs idénticos byte a byte; 5/5 terminan \\
+\midrule
+3. Igualdad &
+  Share medio $\approx 0.20$, con desviación y error &
+  Error absoluto medio $0.000477$ (tolerancia $0.02$), 30 semillas \\
+\midrule
+4. Proporcionalidad &
+  Shares objetivo $1/15 \ldots 5/15$; error $\leq 0.02$ &
+  Error absoluto medio $0.001104$; shares 1/15\ldots5/15 confirmados \\
+\midrule
+5. Terminación &
+  Ninguna FINISHED vuelve a ganar; suma correcta; joins completos &
+  15/15 verificaciones cumplen \\
+\midrule
+6. Modos &
+  Mismo trabajo final y $\pi$ entre modos &
+  7/7 verificaciones cumplen; $\pi$ idéntico bit a bit \\
+\midrule
+7. Estrés &
+  Sin deadlock, fuga, acceso inválido, \textit{data race} ni UB &
+  12/12 en las tres variantes de \textit{sanitizer} (ver \S\ref{sec:sanitizers}) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Los Casos 1, 5 y 6 reportan únicamente el escenario que nombra el enunciado
+--- no toda la suite de ingeniería heredada de los milestones donde se
+originaron (Milestone 1/8 para la validación de CLI/CSV, Milestone 5 para el
+bucle del planificador, Milestone 6 para los modos de ejecución). Esa
+cobertura adicional (52 verificaciones en total: 20 de validación extra de
+CLI/CSV, 20 del bucle del planificador, 39 de los modos de ejecución más 9
+de la validación de \texttt{--yield-config}) se mantiene como parte del
+ciclo normal de desarrollo (\texttt{make test}), separada de la evidencia
+mínima que exige el enunciado.
+
+\subsection{Evidencia de \textit{sanitizers}}
+\label{sec:sanitizers}
+
+El Caso 7 (Estrés: 25 tareas, parámetros variados, 5 semillas en ambos modos
+más los casos borde de $Q=1$ y \texttt{--max-dispatches}) se verificó en tres
+variantes, cada una en el entorno donde certifica algo distinto:
+
+\begin{itemize}
+\item \textbf{AddressSanitizer + UndefinedBehaviorSanitizer}, dentro de
+  Docker (Ubuntu 24.04 x86\_64, el entorno de referencia del enunciado):
+  12/12, sin hallazgos.
+\item \textbf{AddressSanitizer + LeakSanitizer}, dentro de Docker: 12/12,
+  sin fugas de memoria.
+\item \textbf{ThreadSanitizer}, fuera de Docker, directo en el host: 12/12,
+  sin \textit{data races}.
+\end{itemize}
+
+Estas tres variantes no corren en el mismo entorno por dos limitaciones
+conocidas, no atribuibles al código del proyecto: \textbf{LeakSanitizer no
+reporta fugas de forma confiable fuera de un Linux real} (un
+\texttt{malloc} deliberado sin \texttt{free}, compilado con
+\texttt{-fsanitize=address} y corrido fuera de Docker, termina con
+\texttt{exit=0} sin reportar nada; el mismo binario dentro de Docker sí lo
+detecta); y \textbf{ThreadSanitizer falla dentro de Docker en hosts
+ARM64} (\texttt{FATAL: ThreadSanitizer: unexpected memory mapping}) por un
+problema conocido de su instrumentación bajo la emulación x86\_64 de
+Rosetta/QEMU, no relacionado con el código. Ninguna de las dos es un falso
+positivo del análisis en sí --- son limitaciones del entorno de ejecución
+del \textit{sanitizer}, mitigadas corriendo cada uno donde efectivamente
+funciona.

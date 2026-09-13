@@ -1,0 +1,89 @@
+\section{Discusión de \textit{Trade-offs}}
+\label{sec:tradeoffs}
+
+\subsection{Quantum fijo vs. bloque proporcional: costo de coordinación}
+
+Los modos cooperativo y quantum son mecánicamente idénticos --- comparten
+el mismo bucle del worker (Algoritmo~\ref{alg:worker}) y la misma función de
+ejecución; solo difiere cómo se calcula el tamaño del bloque por activación
+(Sección~\ref{sec:algoritmos}). Esa única diferencia tiene, sin embargo, un
+costo de coordinación medible y opuesto según el tamaño relativo de las
+tareas. Con quantum fijo $Q$, una tarea pequeña frente a $Q$ puede terminar
+en una sola activación mientras una tarea grande necesita muchas; con un
+bloque proporcional al tamaño de cada tarea, todas necesitan
+aproximadamente el mismo número de activaciones sin importar su
+\texttt{work\_units} total, a costa de que una tarea grande ceda el CPU con
+más frecuencia de la que cedería bajo un quantum fijo equivalente. El Caso~6
+del enunciado lo hace explícito con una sola tarea de 60 unidades: al 10\,\%
+cooperativo (bloques de 6) necesita 10 activaciones; con quantum $Q=25$
+(bloques 25+25+10) necesita solo 3, para exactamente el mismo trabajo total
+y el mismo resultado de $\pi$. Más activaciones significan más ciclos de
+mutex/condvar y más filas de log por unidad de trabajo real completada ---
+el \textit{overhead} de coordinación del protocolo de la
+Sección~\ref{sec:protocolo}, que no aparece en el resultado final observable
+pero sí en el costo de producirlo.
+
+\subsection{Reproducibilidad vs. realismo temporal}
+
+El enunciado exige que la misma entrada, semilla, modo y parámetros
+produzcan exactamente el mismo registro de decisiones (determinismo). Esto
+se logra midiendo el trabajo en \texttt{work\_units} lógicas --- iteraciones
+discretas de la serie de $\pi$ --- en vez de tiempo real de CPU, y usando
+aritmética entera (Algoritmo~\ref{alg:cooperativo}) en vez de \texttt{double}
+para el cálculo del bloque cooperativo, evitando que la representación de
+punto flotante introduzca variación entre corridas idénticas por diferencias
+de redondeo entre plataformas. El costo de esa reproducibilidad es
+\textbf{realismo}: en un sistema real, el tiempo que una tarea recibe
+depende de interrupciones de temporizador, latencia de memoria, otros
+procesos del sistema operativo real corriendo por debajo, y variabilidad de
+\textit{hardware} --- ninguno de esos factores está presente aquí. La
+elección es deliberada y coherente con el objetivo del proyecto (verificar
+un protocolo de sincronización y una política de asignación, no medir
+rendimiento real de un sistema), pero implica que los números de
+\textit{overhead} de coordinación de la sección anterior son comparables
+\emph{entre sí} (mismo entorno lógico) y no directamente extrapolables al
+costo real de cambio de contexto de un \textit{scheduler} de producción.
+
+\subsection{Selección $O(n)$ por lista vs. árbol de sumas parciales $O(\log n)$}
+
+El sorteo (Algoritmo~\ref{alg:sorteo}) localiza a la ganadora recorriendo la
+lista de tareas \texttt{READY} y acumulando boletos hasta que el boleto
+sorteado cae en el rango de alguna --- costo $O(n)$ por despacho, donde $n$
+es el número de tareas activas. La Opción E del enunciado
+(Tabla~\ref{tab:opciones}) propone sustituir esa lista por un árbol de sumas
+parciales, reduciendo la localización a $O(\log n)$. Para el rango de
+tareas que exige este proyecto (5 a 25), la diferencia entre $O(n)$ y
+$O(\log n)$ es de a lo sumo un factor de $25/\log_2 25 \approx 5$
+comparaciones por despacho --- indistinguible en la práctica frente al costo
+fijo de las dos llamadas a \texttt{pthread\_mutex\_lock}/\texttt{unlock} y
+la señal de condvar que rodean cada sorteo. La complejidad adicional de
+mantener un árbol balanceado (actualizar sumas parciales cada vez que una
+tarea cambia de estado o de boletos efectivos, en vez de solo recorrer un
+arreglo) solo se justificaría con cientos o miles de tareas activas
+simultáneas, un régimen muy distinto al de este proyecto; de ahí que se
+prefiriera reutilizar el mecanismo cooperativo/quantum (Opción A) en vez de
+optimizar una operación que no es el cuello de botella real a esta escala.
+
+\subsection{Equidad de corto plazo vs. largo plazo}
+
+La proporcionalidad de la lotería es, por diseño, una propiedad de largo
+plazo (Sección~\ref{sec:analisis-extension}): si una corrida se deja
+avanzar hasta que todas las tareas terminan, \texttt{observed\_share}
+converge a $1/N$ para todas, sin importar sus boletos, simplemente porque
+cada tarea termina consumiendo exactamente su trabajo total y las que
+tienen más boletos solo llegan ahí más rápido. La ponderación real por
+boletos únicamente es observable dentro de una \textbf{ventana truncada}
+(\texttt{--max-dispatches}) sobre trabajo suficientemente grande, como en
+los Casos 3 y 4 (Sección~\ref{sec:resultados}). Esto implica un
+\textit{trade-off} de medición, no solo de diseño: la elección del tamaño de
+la ventana observada determina qué se puede concluir sobre equidad ---una
+ventana demasiado corta introduce más varianza de corto plazo (menos
+sorteos acumulados para que la ley de los grandes números converja);
+demasiado larga, y algunas tareas empiezan a terminar, sesgando el share de
+las que quedan. La elección de ventana usada en los Casos 3/4 de este
+informe ($10^4$ despachos sobre tareas de $10^7$ unidades) se validó
+verificando que ninguna tarea llega a completar su trabajo dentro de la
+ventana (Sección~\ref{sec:resultados}); la sensibilidad de este mismo
+\textit{trade-off} es aún más pronunciada al medir el efecto de la
+extensión de compensación, cuyo análisis de robustez frente al tamaño de
+ventana está en elaboración (Sección~\ref{sec:resultados-extension}).

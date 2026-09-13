@@ -1,0 +1,108 @@
+\section{Resultados Experimentales}
+\label{sec:resultados}
+
+\subsection{Experimento de proporcionalidad (Casos 3 y 4)}
+
+Ambos casos corren con 5 tareas de $10^{7}$ unidades cada una, ventana
+truncada a $10^4$ despachos (\texttt{--max-dispatches}) y quantum $Q=1000$,
+sobre 30 semillas no nulas ($1, \ldots, 30$). La ventana truncada es
+necesaria para que la ponderación por boletos sea observable: si se deja
+correr hasta que todas las tareas terminen, \texttt{observed\_share}
+converge a $1/N$ para todas independientemente de sus boletos, porque cada
+tarea termina consumiendo exactamente su trabajo total sin importar cuántas
+veces ganó el sorteo en el camino --- la ventana truncada es precisamente lo
+que hace visible la ponderación real del sorteo dentro de un tiempo de
+ejecución razonable.
+
+El Caso 3 (Igualdad, boletos iguales) confirma que sin diferencias de
+boletos el share converge a $1/5 = 0.20$ para las cinco tareas, con un error
+absoluto medio de $0.000477$ sobre las 30 semillas (Tabla~\ref{tab:caso3}).
+
+\begin{table}[htbp]
+\caption{Caso 3 (Igualdad): share observado por tarea, 30 semillas}
+\label{tab:caso3}
+\centering
+\begin{tabular}{ccccc}
+\toprule
+id & objetivo & media & desv. std. & error abs. \\
+\midrule
+1 & 0.200000 & 0.199303 & 0.003660 & 0.000697 \\
+2 & 0.200000 & 0.200730 & 0.004186 & 0.000730 \\
+3 & 0.200000 & 0.199740 & 0.003769 & 0.000260 \\
+4 & 0.200000 & 0.200463 & 0.003250 & 0.000463 \\
+5 & 0.200000 & 0.199763 & 0.003909 & 0.000237 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El Caso 4 (Proporcionalidad, boletos 10/20/30/40/50) es el caso ilustrativo:
+sus objetivos difieren por tarea ($1/15, \ldots, 5/15$), así que revela si el
+sorteo realmente pondera por boletos y no solo distribuye de forma uniforme.
+La Fig.~\ref{fig:objetivo-observado} compara el share objetivo con el
+promedio observado sobre las 30 semillas; el error absoluto medio entre
+tareas es $0.001104$, muy por debajo de la tolerancia del enunciado
+($\leq 0.02$).
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ybar, bar width=7pt,
+    width=\linewidth, height=4.6cm,
+    ylabel={share}, xlabel={id de tarea},
+    symbolic x coords={1,2,3,4,5},
+    xtick=data,
+    legend style={font=\scriptsize, at={(0.5,1.12)}, anchor=south, legend columns=2},
+    ymin=0, ymax=0.4,
+    enlarge x limits=0.15,
+    nodes near coords style={font=\tiny}
+]
+\pgfplotstableread{graficas/objetivo_vs_observado.dat}\datatable
+\addplot table[x=id,y=objetivo] {\datatable};
+\addplot table[x=id,y=observado] {\datatable};
+\legend{objetivo (tickets/total), observado (media, 30 semillas)}
+\end{axis}
+\end{tikzpicture}
+\caption{Caso 4 (Proporcionalidad): share objetivo vs. promedio observado
+por tarea. Datos generados por
+\texttt{docs/informe/graficas/generar\_datos\_proporcionalidad.py}.}
+\label{fig:objetivo-observado}
+\end{figure}
+
+La Fig.~\ref{fig:convergencia} muestra la convergencia del share acumulado a
+lo largo de los $10^4$ despachos de una semilla representativa
+(\texttt{seed=1}): cada tarea se acerca monótonamente a su fracción de
+boletos conforme se acumulan más despachos, con la varianza esperable al
+inicio de la ventana cuando la muestra acumulada todavía es pequeña.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=\linewidth, height=5.2cm,
+    xlabel={despacho}, ylabel={share acumulado},
+    legend style={font=\tiny, at={(0.5,-0.32)}, anchor=north, legend columns=3},
+    ymin=0, ymax=0.45
+]
+\pgfplotstableread{graficas/convergencia_caso4.dat}\conv
+\addplot[thin] table[x=dispatch,y=t1]{\conv}; \addlegendentry{id 1 (0.067)}
+\addplot[thin] table[x=dispatch,y=t2]{\conv}; \addlegendentry{id 2 (0.133)}
+\addplot[thin] table[x=dispatch,y=t3]{\conv}; \addlegendentry{id 3 (0.200)}
+\addplot[thin] table[x=dispatch,y=t4]{\conv}; \addlegendentry{id 4 (0.267)}
+\addplot[thin] table[x=dispatch,y=t5]{\conv}; \addlegendentry{id 5 (0.333)}
+\end{axis}
+\end{tikzpicture}
+\caption{Caso 4: convergencia del share acumulado por tarea a lo largo de
+$10^4$ despachos, semilla 1. Datos generados por el mismo script que la
+Fig.~\ref{fig:objetivo-observado}, a partir del log de eventos real.}
+\label{fig:convergencia}
+\end{figure}
+
+\subsection{Experimento de la extensión (compensation tickets)}
+\label{sec:resultados-extension}
+
+\pendiente{Resultados estadísticos finales del experimento A/B de la
+extensión (media, intervalo de confianza, análisis de sensibilidad a la
+ventana observada) --- en elaboración en paralelo. El diseño del
+experimento, la hipótesis y el mecanismo de la extensión se describen en la
+Sección~\ref{sec:extension}.}

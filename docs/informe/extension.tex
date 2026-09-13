@@ -1,0 +1,113 @@
+\section{Extensión: Compensation Tickets}
+\label{sec:extension}
+
+\subsection{Extensión elegida y motivación}
+
+De las cinco extensiones propuestas por el enunciado (Tabla~\ref{tab:opciones},
+Sección~\ref{sec:analisis-extension}), el equipo eligió la
+\textbf{Opción A: \textit{compensation tickets}}. La extensión exige
+"modelar una tarea que cede antes de consumir el \textit{quantum} e inflar
+temporalmente su valor según la fracción consumida", y responde a la
+pregunta "¿recupera la participación de CPU a la que tenía derecho?". En el
+paper original~\cite{Waldspurger1994}, este mecanismo compensa a un
+servidor que se bloquea esperando E/S en nombre de un cliente y no debería
+ser penalizado frente a clientes que nunca se bloquean: al reactivarse, el
+servidor recibe temporalmente más boletos, proporcionales al inverso de la
+fracción de su último \textit{quantum} que efectivamente usó, hasta agotar
+el equivalente a un \textit{quantum} completo de CPU recibido en boletos
+compensados.
+
+Se eligió esta opción sobre las otras cuatro porque reutiliza el mismo
+mecanismo cooperativo/quantum que el proyecto base de todas formas debía
+implementar (no agrega una máquina de estados nueva ni una fuente de
+eventos externa), porque su pregunta de evaluación se responde con el mismo
+experimento de proporcionalidad que ya exige el proyecto (comparar
+\texttt{observed\_share} con y sin compensación), y porque presenta menor
+superficie de bugs de concurrencia nuevos que la Opción C (estados
+cliente/servidor) o la D (doble contabilidad de monedas).
+
+\subsection{El escenario debe forzarse}
+
+Con el diseño base del planificador (modos cooperativo y quantum tal como
+los especifica el enunciado), una tarea \emph{siempre} consume todo su
+bloque asignado --- no existe ningún mecanismo para que ceda antes de
+tiempo por cuenta propia. El escenario de cesión temprana que la extensión
+necesita observar no puede surgir orgánicamente; hay que modelarlo
+explícitamente, como pide el propio enunciado. Para eso se agregó un
+parámetro opcional y exclusivo del experimento de la extensión:
+\texttt{--yield-config <csv>}, un archivo con encabezado
+\texttt{task\_id,yield\_percent} que le indica a tareas puntuales que cedan
+tras correr solo una fracción de su bloque en vez de agotarlo. Ausente por
+defecto, no tiene ningún efecto sobre los siete casos mínimos del
+enunciado ni sobre el comportamiento base del planificador.
+
+\subsection{Mecanismo}
+
+El \textit{quantum} (o el bloque cooperativo) se mantiene fijo: lo que se
+infla temporalmente son los \textbf{boletos} de la tarea que cedió temprano,
+para darle mayor probabilidad de ganar los siguientes sorteos y así
+compensar el turno reducido. Si una tarea consumió solo una fracción $f$ de
+su bloque antes de ceder:
+\begin{equation}
+\text{tickets\_compensados} = \left\lceil \text{tickets\_base} \times \frac{1}{f} \right\rceil
+\label{eq:compensacion}
+\end{equation}
+La compensación no es permanente: se mantiene mientras la tarea tenga una
+\textbf{deuda} pendiente, definida como lo que le faltó para completar el
+bloque original en la activación donde cedió. Cada vez que la tarea gana un
+sorteo con boletos inflados, corre el bloque completo (ya no vuelve a ceder
+mientras compensa) y descuenta lo corrido de la deuda; al llegar la deuda a
+cero, \texttt{effective\_tickets} vuelve a \texttt{tickets\_base} y el ciclo
+puede repetirse en la siguiente activación que gane.
+
+\subsection{Decisiones de implementación}
+
+Tres puntos que el diseño original dejaba abiertos a propósito se
+resolvieron al implementar (detalle completo en
+\texttt{decisiones\_diseno.md}, D15, del repositorio de conocimiento):
+
+\begin{enumerate}
+\item \textbf{La fracción $f$ se mide contra el bloque que decide el modo,
+  no contra un quantum fijo.} Con dos modos de ejecución, $f$ se generaliza
+  como $\text{unidades\_corridas} / \text{bloque\_decidido}$, donde
+  \texttt{bloque\_decidido} es la misma cantidad que ya calculaba
+  \texttt{decide\_slice\_units} para esa activación (quantum fijo, o el
+  bloque cooperativo recortado por lo que falta) --- sin ramas de código por
+  modo dentro de la extensión.
+\item \textbf{El campo \texttt{tickets} de \texttt{Task} no se renombra.}
+  Ya cumple el rol de "boletos base"; se agregó \texttt{effective\_tickets}
+  como campo nuevo (igual a \texttt{tickets} salvo compensación activa) en
+  vez de tocar los sitios que ya construían o leían \texttt{Task.tickets}
+  desde el Milestone 1.
+\item \textbf{La configuración de qué tareas ceden vive en un archivo
+  aparte.} Nunca en el CSV principal de tareas: una bandera ausente por
+  defecto es una garantía más fuerte de que los casos base no se ven
+  afectados que una columna opcional que el parser tendría que aprender a
+  ignorar.
+\end{enumerate}
+
+El control del experimento A/B (aislar el efecto de \emph{ceder} del efecto
+de \emph{compensar}) tampoco estaba resuelto por el documento de diseño
+original: se agregó \texttt{--disable-compensation}, que requiere
+\texttt{--yield-config} y mantiene la cesión temprana activa pero nunca
+infla \texttt{effective\_tickets} ---la tarea cede la misma fracción en cada
+activación, indefinidamente, sin compensación--- de modo que la comparación
+entre corridas con y sin esta bandera aísla exactamente el efecto de la
+compensación en sí.
+
+\subsection{Hipótesis}
+
+\begin{itemize}
+\item \textbf{H1.} Una tarea que cede voluntariamente antes de agotar su
+  bloque, y que recibe \textit{compensation tickets} proporcionales a la
+  fracción no consumida, alcanza un \texttt{observed\_share} significativamente
+  más cercano a su share objetivo que la misma tarea bajo idénticas
+  condiciones sin compensación.
+\item \textbf{H0.} La compensación no tiene efecto medible sobre el
+  \texttt{observed\_share} de una tarea que cede tempranamente.
+\end{itemize}
+
+El diseño experimental (control \texttt{--disable-compensation} vs.
+tratamiento con compensación activa, misma semilla, mismo CSV, misma
+ventana de despachos, repetido sobre múltiples semillas) y sus resultados
+se presentan en la Sección~\ref{sec:resultados-extension}.

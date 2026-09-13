@@ -14,6 +14,18 @@ results/*
 __pycache__/
 *.pyc
 
+# Artefactos de compilacion de docs/informe/main.tex (el PDF final va en
+# docs/informe.pdf, generado y versionado aparte -- ver docs/informe/README.md)
+docs/informe/*.aux
+docs/informe/*.bbl
+docs/informe/*.blg
+docs/informe/*.fdb_latexmk
+docs/informe/*.fls
+docs/informe/*.log
+docs/informe/*.out
+docs/informe/*.synctex.gz
+docs/informe/main.pdf
+
 # macOS
 .DS_Store
 

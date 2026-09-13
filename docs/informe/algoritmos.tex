@@ -1,0 +1,109 @@
+\section{Algoritmos}
+\label{sec:algoritmos}
+
+Esta sección presenta en pseudocódigo los cuatro algoritmos centrales del
+planificador: el sorteo ponderado, el bucle de despacho del planificador, el
+ciclo de un worker (que incluye la cesión y la actualización de boletos
+activos de la extensión), y el cálculo del tamaño de bloque cooperativo. El
+código real vive en \texttt{src/sync.c}, \texttt{src/scheduler.c} y
+\texttt{src/worker.c}.
+
+\begin{algorithm}[htbp]
+\caption{Sorteo ponderado (\texttt{sync\_select\_winner})}
+\label{alg:sorteo}
+\begin{algorithmic}[1]
+\REQUIRE tareas $T[1..N]$, generador $\text{rng}$
+\STATE \textbf{lock}(mutex)
+\STATE $\text{activos} \gets \sum_{i:\, T[i].\text{state}=\text{READY}} T[i].\text{effective\_tickets}$
+\IF{$\text{activos} = 0$}
+  \STATE \textbf{unlock}(mutex); \textbf{return} $\bot$ \COMMENT{todas terminaron}
+\ENDIF
+\STATE $\text{boleto} \gets (\text{rng.next}() \bmod \text{activos}) + 1$
+\STATE $\text{acum} \gets 0$
+\FOR{$i \gets 1$ \TO $N$}
+  \IF{$T[i].\text{state} = \text{READY}$}
+    \STATE $\text{acum} \gets \text{acum} + T[i].\text{effective\_tickets}$
+    \IF{$\text{boleto} \le \text{acum}$}
+      \STATE \textbf{unlock}(mutex); \textbf{return} $i$ \COMMENT{ganadora}
+    \ENDIF
+  \ENDIF
+\ENDFOR
+\end{algorithmic}
+\end{algorithm}
+
+El sesgo del módulo en la línea 6 (cuando \text{activos} no divide exacto el
+rango de \texttt{xorshift32}) se acepta y documenta en vez de corregirse con
+\textit{rejection sampling}: para los tamaños de \text{activos} reales del
+proyecto (decenas a unos pocos miles) el sesgo relativo es del orden de
+$10^{-8}$, siete órdenes de magnitud por debajo de la tolerancia del
+experimento de proporcionalidad ($\leq 0.02$).
+
+\begin{algorithm}[htbp]
+\caption{Bucle del planificador (\texttt{scheduler\_run}, hilo principal)}
+\label{alg:bucle}
+\begin{algorithmic}[1]
+\STATE despachos $\gets 0$
+\LOOP
+  \IF{$\text{max\_despachos} > 0$ \AND despachos $\ge$ max\_despachos}
+    \STATE \texttt{sync\_request\_stop}() \COMMENT{despierta a las READY restantes sin despacharlas}
+    \STATE \textbf{break}
+  \ENDIF
+  \STATE $g \gets$ \texttt{sync\_select\_winner}()
+  \IF{$g = \bot$}
+    \STATE \textbf{break} \COMMENT{ninguna tarea READY: todas terminaron}
+  \ENDIF
+  \STATE \texttt{sync\_dispatch}($g$) \COMMENT{state[$g$]=RUNNING, signal dirigida a $g$}
+  \STATE \texttt{sync\_wait\_for\_event}() \COMMENT{bloquea hasta que $g$ ceda o termine}
+  \STATE despachos $\gets$ despachos $+ 1$
+  \STATE registrar evento de despacho (log)
+\ENDLOOP
+\STATE \texttt{worker\_pool\_join}()
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[htbp]
+\caption{Ciclo del worker de la tarea $t$ (\texttt{worker\_thread\_main})}
+\label{alg:worker}
+\begin{algorithmic}[1]
+\LOOP
+  \STATE \texttt{sync\_wait\_for\_dispatch}($t$) \COMMENT{bloquea hasta RUNNING o stop}
+  \IF{el planificador solicitó parada antes de despachar a $t$}
+    \STATE \textbf{return} \COMMENT{$t$ queda READY, sin ejecutar nada}
+  \ENDIF
+  \STATE $\text{bloque} \gets$ tamaño de bloque del modo (Algoritmo~\ref{alg:cooperativo} en modo cooperativo, o quantum $Q$ fijo)
+  \STATE $u \gets$ \textsc{ActualizarBoletos}($t$, bloque) \COMMENT{Sección~\ref{sec:extension}; sin \texttt{--yield-config}, $u=\min(\text{bloque}, \text{restante})$}
+  \STATE \texttt{workload\_run\_units}($t$, $u$) \COMMENT{fuera del mutex}
+  \IF{$t.\text{completado} = t.\text{trabajo\_total}$}
+    \STATE $\text{siguiente} \gets \text{FINISHED}$
+  \ELSE
+    \STATE $\text{siguiente} \gets \text{READY}$
+  \ENDIF
+  \STATE \texttt{sync\_finish\_turn}($t$, siguiente) \COMMENT{signal a \texttt{cond\_scheduler}}
+  \IF{$\text{siguiente} = \text{FINISHED}$}
+    \STATE \textbf{return}
+  \ENDIF
+\ENDLOOP
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[htbp]
+\caption{Tamaño de bloque cooperativo (\texttt{cooperative\_slice\_size})}
+\label{alg:cooperativo}
+\begin{algorithmic}[1]
+\REQUIRE $\text{trabajo\_total} \ge 1$, $1 \le P \le 100$
+\STATE \textbf{return} $\max\left(1,\ \left\lceil \dfrac{\text{trabajo\_total} \times P}{100} \right\rceil\right)$
+\end{algorithmic}
+\end{algorithm}
+
+El bloque cooperativo se calcula una sola vez sobre el \texttt{work\_units}
+\emph{total} de la tarea (no sobre el trabajo restante) y es constante
+durante toda su vida; en cada activación se topa por
+$\min(\text{bloque}, \text{restante})$, igual que el quantum fijo. Ambos
+modos comparten exactamente la misma función de ejecución
+(\texttt{workload\_run\_units}) y el mismo bucle del worker --- la única
+diferencia mecánica entre cooperativo y quantum es cómo se calcula el
+tamaño del bloque, lo que explica por qué el Caso~6 (Sección~\ref{sec:pruebas})
+puede exigir resultados idénticos entre ambos modos con solo distinto costo
+de coordinación. La división se implementa con aritmética entera
+($\lceil a/b \rceil = \lfloor (a+b-1)/b \rfloor$) en vez de \texttt{double},
+para preservar el determinismo bit a bit exigido por el enunciado.
