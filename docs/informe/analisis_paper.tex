@@ -1,0 +1,130 @@
+\section{Análisis del Paper}
+\label{sec:analisis-extension}
+
+\subsection{Problema y solución}
+
+Waldspurger y Weihl~\cite{Waldspurger1994} identifican que los mecanismos de
+planificación basados en prioridades (incluyendo esquemas de prioridad
+dinámica como el de Unix) no ofrecen un control \emph{proporcional} y
+predecible sobre la asignación de recursos: ajustar prioridades es una
+operación ad-hoc, sin una relación cuantitativa clara entre el valor
+asignado y la fracción de recurso efectivamente recibida, y las políticas
+que sí intentan dar garantías proporcionales (como \textit{fair-share
+scheduling} clásico) suelen requerir mecanismos de retroalimentación
+complejos o no componen bien cuando los derechos deben transferirse
+temporalmente entre entidades (por ejemplo, de un cliente bloqueado a un
+servidor que trabaja en su nombre).
+
+La solución propuesta es la \textbf{planificación por lotería}: cada
+entidad recibe una cantidad de \textit{boletos} que representa su derecho
+sobre el recurso, y cada decisión de asignación se resuelve sorteando un
+boleto al azar entre los boletos activos. El mecanismo es simple de
+implementar, componible (los boletos se pueden agrupar, transferir o
+subdividir sin lógica especial), y --- a diferencia de los esquemas de
+prioridad --- da una garantía \emph{probabilística} de proporcionalidad en
+vez de una garantía determinista de corto plazo.
+
+\subsection{Proporcionalidad probabilística}
+
+La proporcionalidad de la lotería es un resultado esperado, no una garantía
+por despacho: cada sorteo es un ensayo de Bernoulli independiente, y la
+fracción de sorteos ganados por una tarea con $t_i$ boletos de un total
+activo $T$ converge a $t_i/T$ por la ley de los grandes números conforme
+aumenta el número de sorteos observados, con una varianza que decrece con
+ese mismo número~\cite{NIST2003Handbook, Illowsky2024}. Es exactamente lo
+que exhibe la Fig.~\ref{fig:convergencia}
+(Sección~\ref{sec:resultados}): en pocos cientos de despachos el share
+observado todavía oscila con amplitud visible; hacia el final de la ventana
+de $10^4$ despachos converge de forma estable a la fracción objetivo. Este
+carácter probabilístico --- y no una asignación exacta y determinista de
+cada intervalo --- es la diferencia conceptual central entre la
+planificación por lotería y un planificador de cuotas fijas.
+
+\subsection{Extensión elegida frente a las demás opciones}
+
+El enunciado ofrece cinco extensiones posibles sobre el mecanismo base
+(Tabla~\ref{tab:opciones}); el equipo eligió la Opción A
+(\textit{compensation tickets}, Sección~\ref{sec:extension}) por las razones
+ya expuestas: reutiliza el mecanismo cooperativo/quantum que el proyecto
+base debía implementar de todas formas, y su pregunta de evaluación se
+responde con el mismo experimento de proporcionalidad que ya exige el
+proyecto.
+
+\begin{table}[htbp]
+\caption{Las 5 extensiones propuestas por el enunciado}
+\label{tab:opciones}
+\centering
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{p{2.3cm}p{6.0cm}}
+\toprule
+\textbf{Opción} & \textbf{Requisito mínimo} \\
+\midrule
+A. \textit{Compensation tickets} (elegida) & Modelar una tarea que cede antes del quantum e inflar temporalmente su valor \\
+\midrule
+B. Boletos dinámicos & Aplicar cambios de tickets en despachos definidos por un archivo de eventos \\
+\midrule
+C. \textit{Ticket transfer} & Modelar cliente bloqueado y servidor que recibe temporalmente sus boletos \\
+\midrule
+D. \textit{Currencies} & Dos monedas respaldadas por shares base e inflación local \\
+\midrule
+E. Selección $O(\log n)$ & Árbol de sumas parciales en vez de lista acumulativa \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Las opciones descartadas se evaluaron y se prefirió A sobre ellas por menor
+superficie de bugs de concurrencia nuevos: C requiere modelar estados
+cliente/servidor adicionales a los tres estados de \texttt{Task} ya
+definidos; D requiere una doble contabilidad de monedas con su propia
+lógica de conversión; B modifica la asignación de boletos desde una fuente
+externa durante la corrida, lo que interactúa con la validación de entrada
+de formas que el enunciado no especifica. E se discute también en la
+Sección~\ref{sec:tradeoffs} como \textit{trade-off} de diseño, ya que su
+pregunta de evaluación (¿en qué tamaño de carga compensa la complejidad
+$O(\log n)$?) es ortogonal a la elegida y aplica independientemente de qué
+extensión funcional se implemente.
+
+\subsection{Diferencias con la implementación sobre Mach 3.0}
+
+El paper original valida \textit{lottery scheduling} integrándolo al
+planificador de hilos del \textbf{microkernel Mach 3.0}, reemplazando su
+política de prioridades sobre hardware y cargas de trabajo reales: hilos
+del kernel, interrupciones de temporizador reales que disparan la
+expropiación, bloqueo real en E/S, y múltiples tipos de recurso
+(incluyendo memoria y ancho de banda de red) generalizados bajo el mismo
+mecanismo de boletos.
+
+Este proyecto es, por diseño, una \textbf{simulación en espacio de
+usuario}: no se modifica el \textit{kernel} ni se sustituye el planificador
+real de GNU/Linux, que sigue decidiendo los ciclos de CPU físicos por
+debajo sin que el programa lo sepa. Las diferencias concretas son:
+
+\begin{itemize}
+\item \textbf{Un único CPU lógico simulado}, aplicado mediante el
+  protocolo de mutex/condvars de la Sección~\ref{sec:arquitectura}, en vez
+  de la expropiación real por interrupción de temporizador del kernel.
+\item \textbf{Carga de trabajo sintética e instrumentada} (la serie de
+  Taylor de $\pi$) en vez de cargas de programas reales; se eligió
+  precisamente porque su estado es verificable, no porque modele algo del
+  mundo real.
+\item \textbf{Un único tipo de recurso} (unidades de CPU lógicas), sin la
+  generalización a memoria o ancho de banda que el paper demuestra.
+\item \textbf{Sin cesión real por E/S}: la cesión temprana de la extensión
+  se fuerza explícitamente vía \texttt{--yield-config} en vez de surgir de
+  un bloqueo de E/S real, porque el prototipo no tiene E/S que modelar.
+\end{itemize}
+
+\subsection{Limitaciones del prototipo}
+
+Además de las diferencias estructurales con Mach 3.0, el prototipo tiene
+limitaciones propias de su alcance como proyecto de curso: opera sobre un
+conjunto fijo de tareas conocido de antemano en el CSV de entrada (el paper
+soporta creación dinámica de hilos con boletos heredados); el rango de 5 a
+25 tareas es una cota de validación del enunciado, no una limitación
+inherente del mecanismo de lotería; la selección de la ganadora es
+$O(n)$ sobre la lista de tareas activas (Opción E, no implementada,
+discutida como \textit{trade-off} en la Sección~\ref{sec:tradeoffs}); y no
+se implementa \textit{ticket transfer} (Opción C), por lo que el prototipo
+no demuestra directamente el mecanismo que el paper usa para resolver
+inversión de prioridad en llamadas cliente-servidor --- solo su analogía
+más cercana, la compensación por cesión temprana.

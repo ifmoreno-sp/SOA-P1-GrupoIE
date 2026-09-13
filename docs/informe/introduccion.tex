@@ -1,0 +1,36 @@
+\section{Introducción}
+
+La planificación por lotería (\textit{lottery scheduling}) representa
+derechos de uso del CPU mediante boletos: en cada decisión de despacho se
+sortea un boleto al azar entre las tareas activas y la propietaria del
+boleto ganador recibe el siguiente intervalo de ejecución. A largo plazo, si
+la selección es uniforme, la fracción de CPU que recibe una tarea converge a
+su fracción de los boletos activos --- la propiedad de \textit{proportional
+share} que motiva el mecanismo, descrita originalmente por Waldspurger y
+Weihl~\cite{Waldspurger1994}.
+
+Este proyecto traduce esa política a un mecanismo ejecutable y verificable:
+un planificador en espacio de usuario, escrito en C17 sobre \textit{pthreads}
+POSIX, que no modifica el \textit{kernel} ni sustituye el planificador de
+GNU/Linux. El programa simula la existencia de un único CPU lógico ---cada
+tarea es un hilo que solo avanza su trabajo cuando el planificador se lo
+permite explícitamente--- y usa como carga de trabajo instrumentada el
+cálculo incremental de la serie de Taylor de $\arcsin(1) = \pi/2$, elegida
+por tener estado real que preservar entre activaciones (término anterior,
+suma acumulada, índice) y por ser verificable contra un valor conocido.
+
+\subsection{Alcance de este informe}
+
+Las secciones siguientes cubren, en orden: la arquitectura del sistema y el
+protocolo de sincronización (datos compartidos, mutex, variables de
+condición y sus predicados de espera); el pseudocódigo de los algoritmos
+centrales del sorteo, la activación, la cesión y la terminación; la
+verificación contra los siete casos mínimos de funcionamiento que exige el
+enunciado, incluyendo la evidencia de \textit{sanitizers}; los resultados del
+experimento de proporcionalidad; el diseño e implementación de la extensión
+elegida (\textit{compensation tickets}); un análisis comparativo con el paper
+original de Waldspurger y Weihl, incluyendo las diferencias con su prototipo
+sobre Mach 3.0 y las limitaciones de este prototipo en espacio de usuario; y
+una discusión de los \textit{trade-offs} de diseño más relevantes. El código
+fuente completo y la trazabilidad del equipo viven en el repositorio del
+proyecto (\texttt{README.md}).

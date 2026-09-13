@@ -1,0 +1,35 @@
+\section{Conclusiones}
+
+El planificador implementado traduce la política de \textit{proportional-share
+scheduling} de Waldspurger y Weihl a un mecanismo ejecutable y verificable en
+espacio de usuario, cumpliendo las restricciones de concurrencia del
+enunciado: exclusión mutua verificada en tiempo de ejecución (el
+\texttt{assert} de \texttt{sync\_dispatch}), sin espera activa (todo bloqueo
+pasa por variables de condición con predicado explícito), y sin un único
+candado que envuelva la ejecución del trabajo real. Los siete casos mínimos
+de funcionamiento cumplen, verificados bajo AddressSanitizer,
+UndefinedBehaviorSanitizer, LeakSanitizer y ThreadSanitizer sin hallazgos, y
+el experimento de proporcionalidad confirma que el sorteo pondera
+correctamente por boletos dentro de una ventana de observación truncada,
+con error absoluto medio muy por debajo de la tolerancia exigida.
+
+La extensión elegida, \textit{compensation tickets}, reutiliza el mecanismo
+cooperativo/quantum ya construido para modelar una tarea que cede
+tempranamente y recupera participación de CPU mediante boletos inflados
+temporalmente, sin alterar el comportamiento del planificador base cuando la
+extensión no está activa. El experimento A/B (Sección~\ref{sec:resultados-extension})
+confirma que la tarea comparada recupera una fracción sustancial y
+estadísticamente significativa de la participación a la que tenía derecho
+(mejora relativa $+63.67\%$, IC 95\% $[58.4\%, 68.9\%]$ sobre 100 semillas),
+efecto robusto en dirección pero sensible en magnitud al tamaño de la
+ventana de observación y a los demás parámetros del experimento.
+
+La comparación con el paper original deja claras las simplificaciones
+deliberadas de este prototipo: un único CPU lógico simulado en vez de
+integración real con un \textit{kernel}, una carga de trabajo sintética e
+instrumentada en vez de programas reales, y un único tipo de recurso en vez
+de la generalización a memoria y red que demuestra Mach 3.0. Estas
+simplificaciones son coherentes con el objetivo del proyecto --- verificar
+el protocolo de sincronización y la política de asignación, no medir
+rendimiento de un sistema real --- y se documentan explícitamente en vez de
+presentarse como limitaciones no reconocidas.

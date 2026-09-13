@@ -1,0 +1,170 @@
+\section{Arquitectura y Protocolo de Sincronización}
+\label{sec:arquitectura}
+
+\subsection{Modelo de hilos}
+
+El hilo principal (\texttt{main()}) actúa como el planificador; no existe un
+hilo dedicado separado para esta responsabilidad. El programa simula un
+único CPU lógico, por lo que no hay razón para que el planificador sea una
+entidad concurrente distinta del programa que lo invoca: esta decisión
+reduce en uno el número de hilos a crear, sincronizar y unir, y simplifica el
+argumento de terminación. Además del hilo principal, se crea un
+\texttt{pthread} por tarea (entre 5 y 25), cada uno ejecutando
+\texttt{worker\_thread\_main}. Todo hilo creado se une con
+\texttt{pthread\_join} antes de que el programa termine.
+
+\subsection{Datos compartidos}
+
+Dos estructuras concentran todo el estado que más de un hilo puede tocar:
+
+\begin{itemize}
+\item \textbf{\texttt{Task}} (una por tarea): identificador, boletos base
+  (\texttt{tickets}), boletos efectivos (\texttt{effective\_tickets}, igual a
+  \texttt{tickets} salvo compensación activa, Sección~\ref{sec:extension}),
+  estado (\texttt{READY}/\texttt{RUNNING}/\texttt{FINISHED}), trabajo total y
+  ejecutado, contador de despachos, estado privado de la serie de $\pi$, y su
+  propia variable de condición \texttt{cond\_worker}.
+\item \textbf{\texttt{Sync}} (una para todo el programa): un
+  \texttt{pthread\_mutex\_t}, la variable de condición
+  \texttt{cond\_scheduler} que espera el planificador, su predicado
+  \texttt{event\_ready}, y la bandera \texttt{stop\_requested} que activa
+  \texttt{--max-dispatches}.
+\end{itemize}
+
+Un único mutex (\texttt{sync.mutex}) protege el estado de todas las
+\texttt{Task} (\texttt{state}, \texttt{dispatch\_count},
+\texttt{effective\_tickets}, \texttt{debt}), \texttt{event\_ready} y
+\texttt{stop\_requested}. Ese mutex \textbf{no} envuelve la ejecución de las
+unidades de trabajo de $\pi$: hacerlo violaría la prohibición explícita del
+enunciado de proteger toda la ejecución con un único bloqueo, y además sería
+innecesario. La Sección~\ref{sec:invariante} explica por qué omitirlo ahí es
+seguro.
+
+\subsection{Variables de condición y predicados de espera}
+
+Se usa un esquema de \textbf{una \texttt{cond\_worker} por tarea más una
+\texttt{cond\_scheduler} compartida}, en vez de una única condvar global con
+un predicado de ``turno'' señalada por \textit{broadcast}. La alternativa
+descartada despertaría innecesariamente a las $N-1$ tareas que no ganaron
+cada despacho --- el problema de \textit{thundering herd}: muchos hilos
+despertados por un mismo evento cuando a lo sumo uno puede hacer trabajo
+útil, desperdiciando ciclos de CPU y generando contención de mutex
+innecesaria en los demás~\cite{MolloyLever2000}. El esquema elegido lo
+evita señalando siempre de forma dirigida
+(\texttt{pthread\_cond\_signal}, nunca \texttt{pthread\_cond\_broadcast}) a
+un único hilo por evento. La Tabla~\ref{tab:condvars} resume las dos
+condvars del protocolo: quién espera en cada una, su predicado exacto, y
+quién la señala.
+
+\begin{table*}[htbp]
+\caption{Condvars, predicados y quién señala}
+\label{tab:condvars}
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{p{3.0cm}p{2.6cm}p{4.5cm}p{7.0cm}}
+\toprule
+\textbf{Condvar} & \textbf{Espera} & \textbf{Predicado} & \textbf{Señala} \\
+\midrule
+\texttt{task[i].cond\_worker} &
+  Worker $i$ &
+  \texttt{state==RUNNING || stop\_requested} &
+  El planificador, al elegir a $i$ como ganador (o \texttt{sync\_request\_stop} al cortar) \\
+\midrule
+\texttt{cond\_scheduler} &
+  El planificador &
+  \texttt{event\_ready} &
+  El worker en ejecución, al ceder o terminar \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+Ambos predicados se evalúan dentro de un \texttt{while}, nunca un
+\texttt{if}, por dos razones independientes: POSIX permite explícitamente
+que \texttt{pthread\_cond\_wait} retorne sin que nadie haya señalado la
+condición~\cite{IEEE1003.1-2024} --- un despertar sin causa aparente,
+conocido en la literatura de \textit{pthreads} como \textit{spurious
+wakeup}~\cite{Butenhof1997}; y el caso en que varios hilos comparten una
+condvar y el que despierta encuentra que la condición ya no aplica. \texttt{pthread\_cond\_wait} suelta el mutex y duerme el hilo de
+forma atómica, y vuelve a tomar el mutex antes de retornar --- evita la
+condición de \textit{señal perdida} que ocurriría si soltar el mutex y
+dormirse fueran dos pasos separados.
+
+\subsection{Protocolo de despacho}
+\label{sec:protocolo}
+
+La Fig.~\ref{fig:protocolo} muestra el ciclo completo de un despacho (el
+pseudocódigo correspondiente es el Algoritmo~\ref{alg:bucle},
+Sección~\ref{sec:algoritmos}). El planificador (hilo principal) ejecuta
+tres pasos en secuencia:
+\texttt{sync\_select\_winner} (sortea la ganadora entre las tareas
+\texttt{READY}, ponderando por \texttt{effective\_tickets}),
+\texttt{sync\_dispatch} (marca a la ganadora \texttt{RUNNING} y la señala), y
+\texttt{sync\_wait\_for\_event} (se bloquea hasta que esa tarea ceda o
+termine). El worker ganador, mientras tanto, estaba bloqueado en
+\texttt{sync\_wait\_for\_dispatch}; al despertar, ejecuta su porción de
+trabajo \textbf{fuera del mutex} y cierra el ciclo con
+\texttt{sync\_finish\_turn}, que actualiza su estado y despierta al
+planificador.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    box/.style={draw=black, rounded corners=3pt, text width=3.65cm,
+                minimum height=0.9cm, align=center, font=\scriptsize},
+    arr/.style={-{Stealth[length=2mm]}, thick},
+    lbl/.style={font=\tiny, align=center},
+    node distance=6mm
+]
+\node[box, fill=blue!8] (sel) {\texttt{sync\_select\_winner}\\(toma mutex, suma \texttt{effective\_tickets} de READY, sortea, suelta mutex)};
+\node[box, fill=blue!8, below=of sel] (disp) {\texttt{sync\_dispatch}\\(toma mutex, assert exclusión, \texttt{state=RUNNING}, \texttt{signal(cond\_worker[i])}, suelta mutex)};
+\node[box, fill=blue!8, below=of disp] (wait) {\texttt{sync\_wait\_for\_event}\\(toma mutex, \texttt{while(!event\_ready) cond\_wait}, suelta mutex)};
+
+\node[box, fill=orange!12, below=16mm of wait] (wd) {\texttt{sync\_wait\_for\_dispatch}\\(worker $i$, dormido hasta \texttt{state==RUNNING})};
+\node[box, fill=green!12, below=of wd] (work) {\texttt{workload\_run\_units}\\ \textbf{(sin mutex)} --- seguro por el invariante de exclusión};
+\node[box, fill=orange!12, below=of work] (fin) {\texttt{sync\_finish\_turn}\\(toma mutex, \texttt{state=READY|FINISHED}, \texttt{event\_ready=1}, \texttt{signal(cond\_scheduler)}, suelta mutex)};
+
+\draw[arr] (sel.south) -- (disp.north);
+\draw[arr] (disp.south) -- (wait.north);
+\draw[arr] (disp.east) to[out=-20,in=90] node[lbl, right=1pt] {signal\\dirigida} (wd.north east);
+\draw[arr] (wd.south) -- (work.north);
+\draw[arr] (work.south) -- (fin.north);
+\draw[arr] (fin.west) to[out=160,in=-90] node[lbl, left=1pt] {signal} (wait.south west);
+\draw[arr, dashed] (fin.east) to[out=20,in=-90] node[lbl, right=1pt] {si READY,\\vuelve a\\esperar} (wd.south east);
+\end{tikzpicture}
+\caption{Un ciclo de despacho. Las cajas azules corren en el hilo
+planificador (\texttt{main}); las naranjas y la verde, en el hilo worker de
+la tarea ganadora. Solo el tramo verde corre sin el mutex tomado.}
+\label{fig:protocolo}
+\end{figure}
+
+\subsection{Por qué es seguro ejecutar el trabajo sin el mutex}
+\label{sec:invariante}
+
+El invariante de exclusión --- como máximo una tarea en \texttt{RUNNING} en
+todo momento, garantizado por el \texttt{assert} dentro de
+\texttt{sync\_dispatch} --- implica que mientras una tarea corre, ningún
+otro hilo lee ni escribe sus campos: el planificador está bloqueado en
+\texttt{sync\_wait\_for\_event} (no toca ninguna \texttt{Task}), y los demás
+workers están bloqueados en \texttt{sync\_wait\_for\_dispatch} esperando su
+propia señal (nunca tocan una tarea ajena). El único hilo que puede tocar la
+tarea mientras corre es su propio dueño. Esta es una invariante del
+\emph{protocolo} (el orden de llamadas), no algo que un \textit{sanitizer}
+pueda verificar por sí solo --- de ahí que cualquier código nuevo que
+necesite leer el progreso de una tarea \texttt{RUNNING} desde otro hilo (por
+ejemplo, un log en vivo) deba traer esa lectura dentro del mutex
+explícitamente, en vez de asumir que es seguro por analogía con este caso.
+
+\subsection{Terminación limpia y \texttt{--max-dispatches}}
+
+El enunciado exige que ningún trabajador quede bloqueado al finalizar. Una
+tarea que llega a \texttt{FINISHED} simplemente retorna de
+\texttt{worker\_thread\_main}. El caso menos obvio es
+\texttt{--max-dispatches}: cuando el planificador alcanza el límite, una
+tarea todavía \texttt{READY} que nunca vuelve a ser elegida se quedaría
+esperando su señal para siempre. \texttt{sync\_request\_stop} resuelve esto
+señalando la \texttt{cond\_worker} de cada tarea \texttt{READY} sin cambiar
+su estado; \texttt{sync\_wait\_for\_dispatch} retorna un código distinto de
+cero en ese caso, y el worker retorna de inmediato sin ejecutar trabajo ni
+llamar \texttt{sync\_finish\_turn}, dejando su tarea intacta en
+\texttt{READY}. El planificador entonces une los $N$ hilos con
+\texttt{worker\_pool\_join} sin que ninguno quede colgado.
